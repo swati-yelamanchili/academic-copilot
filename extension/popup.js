@@ -114,12 +114,41 @@ doneBtn.addEventListener("click", () => {
 });
 
 
+async function applyCredentialsAndOpen(url) {
+  status.textContent = "Applying credentials...";
+  try {
+    const data = await fetchJson("/cookies");
+    if (data.cookies && data.cookies.length > 0) {
+      for (const cookie of data.cookies) {
+        const protocol = cookie.secure ? "https://" : "http://";
+        const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
+        const cookieUrl = `${protocol}${domain}${cookie.path}`;
+
+        await chrome.cookies.set({
+          url: cookieUrl,
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path,
+          secure: cookie.secure,
+          httpOnly: cookie.httpOnly,
+          expirationDate: cookie.expires
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to apply credentials", err);
+  }
+  status.textContent = "";
+  chrome.tabs.create({ url });
+}
+
 viewPdfBtn.addEventListener("click", () => {
   if (!currentTask || !currentTask.pdf_url) {
     status.textContent = "No PDF available (try Sync first)";
     return;
   }
-  chrome.tabs.create({ url: currentTask.pdf_url });
+  applyCredentialsAndOpen(currentTask.pdf_url);
 });
 
 
@@ -128,10 +157,10 @@ submitBtn.addEventListener("click", () => {
     status.textContent = "No submission link available";
     return;
   }
-  chrome.tabs.create({ url: currentTask.source_url });
+  applyCredentialsAndOpen(currentTask.source_url);
 });
 
 
 document.getElementById("calendarBtn").addEventListener("click", () => {
-  chrome.tabs.create({ url: "https://calendar.google.com" });
+  applyCredentialsAndOpen("https://calendar.google.com");
 });

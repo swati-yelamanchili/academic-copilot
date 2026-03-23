@@ -97,6 +97,16 @@ def mark_done(task_id: str):
 
 
 
+@app.get("/cookies")
+def get_cookies():
+    import json
+    import os
+    if os.path.exists("state.json"):
+        with open("state.json", "r") as f:
+            state = json.load(f)
+            return {"cookies": state.get("cookies", [])}
+    return {"cookies": []}
+
 if __name__ == "__main__":
     import uvicorn
 
