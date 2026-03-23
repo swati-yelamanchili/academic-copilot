@@ -124,23 +124,38 @@ async function applyCredentialsAndOpen(url) {
         const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
         const cookieUrl = `${protocol}${domain}${cookie.path}`;
 
-        await chrome.cookies.set({
+        const cookieDetails = {
           url: cookieUrl,
           name: cookie.name,
           value: cookie.value,
           domain: cookie.domain,
           path: cookie.path,
           secure: cookie.secure,
-          httpOnly: cookie.httpOnly,
-          expirationDate: cookie.expires
-        });
+          httpOnly: cookie.httpOnly
+        };
+
+        if (cookie.sameSite === "None") {
+          cookieDetails.sameSite = "no_restriction";
+        } else if (cookie.sameSite === "Lax") {
+          cookieDetails.sameSite = "lax";
+        } else if (cookie.sameSite === "Strict") {
+          cookieDetails.sameSite = "strict";
+        }
+
+        if (cookie.expires !== -1) {
+          cookieDetails.expirationDate = cookie.expires;
+        }
+
+        await chrome.cookies.set(cookieDetails);
       }
     }
+    status.textContent = "";
+    chrome.tabs.create({ url });
   } catch (err) {
-    console.error("Failed to apply credentials", err);
+    console.error("Failed to apply credentials:", err);
+    status.textContent = "Error: " + err.message;
+    setTimeout(() => chrome.tabs.create({ url }), 2000);
   }
-  status.textContent = "";
-  chrome.tabs.create({ url });
 }
 
 viewPdfBtn.addEventListener("click", () => {
