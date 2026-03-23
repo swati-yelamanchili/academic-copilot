@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Academic Copilot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      width: 320px;
+      padding: 16px;
+      background: #0f172a;
+      /* Slate 900 */
+      color: #f8fafc;
+      /* Slate 50 */
+    }
+
+    .header {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      color: #94a3b8;
+      /* Slate 400 */
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #3b82f6;
+      /* Blue 500 */
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+    }
+
+    .card {
+      background: #1e293b;
+      /* Slate 800 */
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border: 1px solid #334155;
+      /* Slate 700 */
+      margin-bottom: 16px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+      border-color: #475569;
+    }
+
+    .title {
+      font-weight: 600;
+      font-size: 15px;
+      line-height: 1.4;
+      margin-bottom: 4px;
+      color: #f1f5f9;
+      /* Slate 100 */
+    }
+
+    .course {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+      font-weight: 500;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: #64748b;
+      /* Slate 500 */
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e2e8f0;
+      /* Slate 200 */
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .btn-full {
+      grid-column: span 2;
+    }
+
+    button {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* Primary Accent Button */
+    #submitBtn {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+    }
+
+    #submitBtn:hover {
+      background: linear-gradient(135deg, #60a5fa, #3b82f6);
+      box-shadow: 0 4px 6px rgba(37, 99, 235, 0.4);
+      transform: translateY(-1px);
+    }
+
+    /* Secondary Buttons */
+    #viewPdfBtn,
+    #syncBtn {
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid #475569;
+    }
+
+    #viewPdfBtn:hover,
+    #syncBtn:hover {
+      background: #475569;
+      border-color: #64748b;
+    }
+
+    /* Action Buttons */
+    #doneBtn {
+      background: #10b981;
+      /* Emerald 500 */
+      color: white;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+    }
+
+    #doneBtn:hover {
+      background: #34d399;
+      box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+    }
+
+    #calendarBtn {
+      background: transparent;
+      color: #cbd5e1;
+      border: 1px dashed #475569;
+    }
+
+    #calendarBtn:hover {
+      border-color: #94a3b8;
+      color: white;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    #status {
+      font-size: 11px;
+      text-align: center;
+      color: #94a3b8;
+      margin-top: 12px;
+      min-height: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">Next Priority</div>
+  <div id="container"></div>
+
+  <div class="button-grid">
+    <button id="viewPdfBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+        <polyline points="10 9 9 9 8 9"></polyline>
+      </svg>
+      Read PDF
+    </button>
+    <button id="submitBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+      Submit
+    </button>
+    <button id="doneBtn" class="btn-full">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+      Mark Complete
+    </button>
+    <button id="syncBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+      Sync
+    </button>
+    <button id="calendarBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      Calendar
+    </button>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
