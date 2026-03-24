@@ -169,6 +169,16 @@ def get_dashboard_data(username=None, password=None, headless=None):
                 )
 
             print("Dashboard timeline detected.")
+            
+            # Wait for any active network requests to settle so AJAX loads tasks
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+                
+            # Additional explicit wait for DOM to stabilize
+            page.wait_for_timeout(3000)
+
             context = page.context
             context.storage_state(path="state.json")
             print("Session saved to state.json")
