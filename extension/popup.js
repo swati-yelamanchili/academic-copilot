@@ -1,3 +1,4 @@
+const loadingUI = document.getElementById("loadingUI");
 const loginUI = document.getElementById("loginUI");
 const mainUI = document.getElementById("mainUI");
 const loginAppBtn = document.getElementById("loginAppBtn");
@@ -12,6 +13,7 @@ fetch("https://academic-copilot.onrender.com/api/get-credentials", {
 })
   .then(response => response.json())
   .then(data => {
+    loadingUI.style.display = "none";
     if (data.error) {
       loginUI.style.display = "block";
       return;
@@ -23,6 +25,7 @@ fetch("https://academic-copilot.onrender.com/api/get-credentials", {
   })
   .catch(err => {
     console.error("Fetch failed:", err);
+    loadingUI.style.display = "none";
     loginUI.style.display = "block";
   });
 

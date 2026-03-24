@@ -16,6 +16,7 @@
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       width: 320px;
+      min-height: 200px;
       padding: 16px;
       background: #0f172a;
       /* Slate 900 */
@@ -211,6 +212,20 @@
 
 <body>
   <div class="header">Next Priority</div>
+
+  <div id="loadingUI" style="text-align: center; padding: 40px 0;">
+    <div style="color: #3b82f6; font-size: 20px; margin-bottom: 12px; animation: spin 2s linear infinite;">⏳</div>
+    <div style="font-size: 13px; color: #f1f5f9; font-weight: 500; margin-bottom: 6px;">Connecting to Server...</div>
+    <div style="font-size: 11px; color: #64748b;">(May take ~50s to wake up)</div>
+  </div>
+
+  <style>
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
 
   <div id="loginUI" style="display: none; text-align: center; padding: 20px 0;">
     <div style="font-size: 13px; margin-bottom: 16px; color: #94a3b8; line-height: 1.5;">Please connect your Copilot

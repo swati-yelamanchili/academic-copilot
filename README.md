@@ -16,7 +16,21 @@ Academic Copilot is a cloud-hosted Python backend and local browser extension th
 
 ---
 
-## 🚀 Installation & Setup
+## � User Setup (Quick Start)
+
+If you just want to use the Academic Copilot extension with the default hosted backend, follow these simple steps:
+
+1. **Download the Extension:** Download or clone this repository to your computer.
+2. **Open Extensions Page:** Open your Chromium-based browser (Chrome, Edge, Brave) and navigate to `chrome://extensions/`.
+3. **Enable Developer Mode:** Toggle **Developer mode** on (usually in the top right corner).
+4. **Install:** Click the **Load unpacked** button and select the `extension` folder from the downloaded repository.
+5. **Pin & Connect:** Pin the extension to your toolbar, click the icon, and select **Connect Account** to securely log in.
+
+---
+
+## 🛠️ Developer Setup & Deployment
+
+If you want to run your own backend, modify the code, or deploy a custom instance, follow the steps below.
 
 ### 1. Local Development Requirements
 
@@ -54,9 +68,8 @@ Place your `credentials.json` (Google Desktop App OAuth file) in the root direct
 
 ---
 
-## 🛠️ Deployment (Render)
+## ☁️ Deployment (Render)
 
-This application is architected to deploy flawlessly on [Render](https://render.com) using its free tier.
 
 **Web Service Setup:**
 1. Connect your GitHub repository.
@@ -67,14 +80,13 @@ This application is architected to deploy flawlessly on [Render](https://render.
 
 ---
 
-## 🧩 Loading the Extension
+## 🧩 Custom Extension Setup (For Developers)
 
-1. After deploying the backend, open `extension/popup.js`.
-2. Update the `API_BASE` to match your deployed URL (e.g. `https://your-app.onrender.com/api`).
-3. Open your Chromium-based browser and navigate to `chrome://extensions/`.
-4. Toggle **Developer mode** on.
-5. Click **Load unpacked** and select the `extension` folder.
-6. Click the extension icon. If it asks you to connect, it will open your deployed portal to securely sign in with Google and enter your Moodle credentials!
+If you deployed your own backend, you must connect your local extension to it:
+
+1. Open `extension/popup.js`.
+2. Update the `API_BASE` and login URLs to match your deployed URL (e.g. `https://your-app.onrender.com/api`).
+3. Follow the "User Setup" steps above to load the custom extension into your browser.
 
 ## 🎮 How to Use
 
