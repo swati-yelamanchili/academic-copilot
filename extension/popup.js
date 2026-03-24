@@ -77,7 +77,9 @@ function renderTask(item) {
 
 
 async function fetchJson(path) {
-  const response = await fetch(`${API_BASE}${path}`);
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: "include"
+  });
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
@@ -134,7 +136,7 @@ doneBtn.addEventListener("click", () => {
 
   status.textContent = "Deleting...";
 
-  fetch(`${API_BASE}/done?task_id=${currentTask.id}`, { method: "POST" })
+  fetch(`${API_BASE}/done?task_id=${currentTask.id}`, { method: "POST", credentials: "include" })
     .then(res => res.json())
     .then(() => {
       status.textContent = "Task completed!";

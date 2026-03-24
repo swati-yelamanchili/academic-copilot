@@ -170,9 +170,9 @@ def sync_assignments(assignments):
     }
 
 
-def run_pipeline():
+def run_pipeline(username=None, password=None):
     try:
-        html, pdf_map = get_dashboard_data()
+        html, pdf_map = get_dashboard_data(username=username, password=password)
     except RuntimeError:
         return {
             "added": 0,
@@ -308,7 +308,18 @@ def get_assignments():
 
 @app.route("/api/sync")
 def sync_now():
-    result = run_pipeline()
+    if "user" not in session:
+        return jsonify({"error": "not logged in"}), 401
+
+    email = session["user"]["email"]
+    username, encrypted_password = get_user_credentials(email)
+
+    if not username:
+        return jsonify({"error": "not setup"}), 400
+
+    password = decrypt(encrypted_password)
+
+    result = run_pipeline(username, password)
     return jsonify({
         "status": "updated",
         **result,
