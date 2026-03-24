@@ -42,6 +42,11 @@ load_dotenv(dotenv_path=".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+)
 
 CORS(app, supports_credentials=True)
 oauth = OAuth(app)
