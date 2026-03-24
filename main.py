@@ -40,9 +40,12 @@ from utils import (
     priority_score
 )
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 load_dotenv(dotenv_path=".env")
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.getenv("SECRET_KEY")
 app.config.update(
     SESSION_COOKIE_SAMESITE="None",
