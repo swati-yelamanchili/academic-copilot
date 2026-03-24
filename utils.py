@@ -14,7 +14,9 @@ def urgency_score(dt_str):
     if deadline.tzinfo is not None:
         now = datetime.datetime.now(datetime.timezone.utc)
     else:
-        now = datetime.datetime.now()
+        from zoneinfo import ZoneInfo
+        deadline = deadline.replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+        now = datetime.datetime.now(datetime.timezone.utc)
 
     delta = (deadline - now).total_seconds() / 3600  # hours
 

@@ -74,7 +74,7 @@ Place your `credentials.json` (Google Desktop App OAuth file) in the root direct
 **Web Service Setup:**
 1. Connect your GitHub repository.
 2. Select **Python 3** environment.
-3. **Build Command**: `pip install -r requirements.txt && playwright install chromium`
+3. **Build Command**: `./build.sh`
 4. **Start Command**: `gunicorn main:app`
 5. Add all the properties from your `.env` into the Environment Variables table.
 

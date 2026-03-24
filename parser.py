@@ -94,13 +94,12 @@ def _extract_time(event):
 
 def _extract_course(event):
     text = _event_text(event)
-    marker = "Assignment is due"
-    marker_index = text.find(marker)
+    match = re.search(r"(?:is due|closes)\s+", text, re.IGNORECASE)
 
-    if marker_index == -1:
+    if not match:
         return None
 
-    course = text[marker_index + len(marker):].strip(" .,-:;|·")
+    course = text[match.end():].strip(" .,-:;|·")
     course = COURSE_END_PATTERN.sub("", course).strip(" .,-:;|·")
     return course or None
 

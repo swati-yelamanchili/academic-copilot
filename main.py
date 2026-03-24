@@ -51,7 +51,7 @@ app.config.update(
 )
 
 CORS(app, supports_credentials=True, origins=[
-    "chrome-extension://",
+    r"chrome-extension://.*",
     "https://academic-copilot.onrender.com",
 ])
 oauth = OAuth(app)
@@ -360,7 +360,7 @@ def next_task():
             "pdf_url": r.get("pdf_url"),
             "source_url": r.get("source_url"),
         }
-        item["priority"] = priority_score(item["urgency"], item["effort"])
+        item["priority"] = priority_score(item["urgency"], item["effort"], overdue=(item["urgency"] == 5))
         result.append(item)
 
     if not result:
