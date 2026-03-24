@@ -73,10 +73,8 @@ Place your `credentials.json` (Google Desktop App OAuth file) in the root direct
 
 **Web Service Setup:**
 1. Connect your GitHub repository.
-2. Select **Python 3** environment.
-3. **Build Command**: `./build.sh`
-4. **Start Command**: `gunicorn main:app`
-5. Add all the properties from your `.env` into the Environment Variables table.
+2. Select **Docker** environment (Render will automatically detect the \`Dockerfile\`).
+3. Add all the properties from your \`.env\` into the Environment Variables table.
 
 ---
 
