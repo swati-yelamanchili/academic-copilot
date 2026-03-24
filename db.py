@@ -1,12 +1,21 @@
-import sqlite3
+import os
+import psycopg2
+import psycopg2.extras
+from dotenv import load_dotenv
 
 from parser import build_assignment_dedupe_key, build_assignment_identity_key
 
-DB_PATH = "tasks.db"
+load_dotenv()
+
+def get_connection():
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError("DATABASE_URL environment variable is not set in .env")
+    return psycopg2.connect(db_url)
 
 
-def init_db(db_path=DB_PATH):
-    conn = sqlite3.connect(db_path)
+def init_db():
+    conn = get_connection()
     cur = conn.cursor()
 
     cur.execute(
@@ -16,181 +25,32 @@ def init_db(db_path=DB_PATH):
             title TEXT,
             course TEXT,
             datetime TEXT,
-            synced INTEGER DEFAULT 0
+            synced INTEGER DEFAULT 0,
+            dedupe_key TEXT,
+            raw_title TEXT,
+            deadline TEXT,
+            all_day INTEGER NOT NULL DEFAULT 0,
+            calendar_event_id TEXT,
+            identity_key TEXT UNIQUE,
+            source_url TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            pdf_url TEXT
         )
         """
     )
 
-    for statement in (
-        "ALTER TABLE assignments ADD COLUMN dedupe_key TEXT",
-        "ALTER TABLE assignments ADD COLUMN raw_title TEXT",
-        "ALTER TABLE assignments ADD COLUMN deadline TEXT",
-        "ALTER TABLE assignments ADD COLUMN all_day INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE assignments ADD COLUMN calendar_event_id TEXT",
-        "ALTER TABLE assignments ADD COLUMN identity_key TEXT",
-        "ALTER TABLE assignments ADD COLUMN source_url TEXT",
-        "ALTER TABLE assignments ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
-        "ALTER TABLE assignments ADD COLUMN pdf_url TEXT",
-    ):
-        try:
-            cur.execute(statement)
-        except sqlite3.OperationalError:
-            pass
-
-    try:
-        cur.execute("UPDATE assignments SET raw_title = title WHERE raw_title IS NULL")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cur.execute("UPDATE assignments SET deadline = datetime WHERE deadline IS NULL")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cur.execute("UPDATE assignments SET datetime = deadline WHERE datetime IS NULL")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cur.execute("UPDATE assignments SET active = 1 WHERE active IS NULL")
-    except sqlite3.OperationalError:
-        pass
-
-    cur.execute(
-        """
-        SELECT
-            rowid,
-            id,
-            title,
-            raw_title,
-            course,
-            source_url,
-            COALESCE(deadline, datetime),
-            all_day,
-            synced,
-            calendar_event_id,
-            COALESCE(active, 1)
-        FROM assignments
-        ORDER BY rowid
-        """
-    )
-    rows = cur.fetchall()
-
-    survivors = {}
-    duplicate_rowids = []
-
-    for row in rows:
-        (
-            rowid,
-            assignment_id,
-            title,
-            raw_title,
-            course,
-            source_url,
-            deadline_value,
-            all_day,
-            synced,
-            calendar_event_id,
-            active,
-        ) = row
-
-        identity_key = build_assignment_identity_key(source_url, raw_title, title, course)
-        dedupe_key = build_assignment_dedupe_key(raw_title, title, course, deadline_value)
-
-        if identity_key not in survivors:
-            survivors[identity_key] = {
-                "rowid": rowid,
-                "id": identity_key,
-                "identity_key": identity_key,
-                "title": title,
-                "raw_title": raw_title,
-                "course": course,
-                "source_url": source_url,
-                "deadline": deadline_value,
-                "all_day": all_day or 0,
-                "calendar_event_id": calendar_event_id,
-                "synced": synced or 0,
-                "active": active or 0,
-                "dedupe_key": dedupe_key,
-                "has_duplicates": False,
-            }
-            continue
-
-        duplicate_rowids.append(rowid)
-        survivor = survivors[identity_key]
-        survivor["title"] = title
-        survivor["raw_title"] = raw_title
-        survivor["course"] = course
-        survivor["source_url"] = source_url or survivor["source_url"]
-        survivor["deadline"] = deadline_value
-        survivor["all_day"] = all_day or 0
-        survivor["calendar_event_id"] = calendar_event_id or survivor["calendar_event_id"]
-        survivor["active"] = int(bool(survivor["active"] or active))
-        survivor["synced"] = 0
-        survivor["dedupe_key"] = dedupe_key
-        survivor["has_duplicates"] = True
-
-    for survivor in survivors.values():
-        cur.execute(
-            """
-            UPDATE assignments
-            SET
-                id = ?,
-                identity_key = ?,
-                dedupe_key = ?,
-                title = ?,
-                raw_title = ?,
-                course = ?,
-                source_url = ?,
-                datetime = ?,
-                deadline = ?,
-                all_day = ?,
-                calendar_event_id = ?,
-                synced = ?,
-                active = ?
-            WHERE rowid = ?
-            """,
-            (
-                survivor["id"],
-                survivor["identity_key"],
-                survivor["dedupe_key"],
-                survivor["title"],
-                survivor["raw_title"],
-                survivor["course"],
-                survivor["source_url"],
-                survivor["deadline"],
-                survivor["deadline"],
-                survivor["all_day"],
-                survivor["calendar_event_id"],
-                0 if survivor["has_duplicates"] else survivor["synced"],
-                survivor["active"],
-                survivor["rowid"],
-            ),
-        )
-
-    for rowid in duplicate_rowids:
-        cur.execute("DELETE FROM assignments WHERE rowid = ?", (rowid,))
-
-    cur.execute("DROP INDEX IF EXISTS idx_assignments_dedupe_key")
     cur.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_assignments_dedupe_key
         ON assignments(dedupe_key)
         """
     )
-    cur.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_assignments_identity_key
-        ON assignments(identity_key)
-        """
-    )
-
+    
     conn.commit()
     conn.close()
 
 
-def insert_assignment(assignment, db_path=DB_PATH):
+def insert_assignment(assignment):
     deadline = assignment.get("deadline") or assignment.get("datetime")
     if not deadline:
         raise ValueError("assignment deadline is required before insert")
@@ -215,7 +75,7 @@ def insert_assignment(assignment, db_path=DB_PATH):
         assignment.get("course"),
     )
 
-    conn = sqlite3.connect(db_path)
+    conn = get_connection()
     cur = conn.cursor()
 
     if source_url and identity_key != legacy_identity_key:
@@ -223,11 +83,11 @@ def insert_assignment(assignment, db_path=DB_PATH):
             """
             UPDATE assignments
             SET
-                id = ?,
-                identity_key = ?,
-                source_url = COALESCE(source_url, ?),
+                id = %s,
+                identity_key = %s,
+                source_url = COALESCE(source_url, %s),
                 synced = 0
-            WHERE identity_key = ?
+            WHERE identity_key = %s
               AND (source_url IS NULL OR source_url = '')
             """,
             (identity_key, identity_key, source_url, legacy_identity_key),
@@ -249,25 +109,25 @@ def insert_assignment(assignment, db_path=DB_PATH):
             active,
             synced
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 0)
         ON CONFLICT(identity_key) DO UPDATE SET
-            id = excluded.id,
-            dedupe_key = excluded.dedupe_key,
-            title = excluded.title,
-            raw_title = excluded.raw_title,
-            course = excluded.course,
-            source_url = COALESCE(excluded.source_url, assignments.source_url),
-            datetime = excluded.datetime,
-            deadline = excluded.deadline,
-            all_day = excluded.all_day,
+            id = EXCLUDED.id,
+            dedupe_key = EXCLUDED.dedupe_key,
+            title = EXCLUDED.title,
+            raw_title = EXCLUDED.raw_title,
+            course = EXCLUDED.course,
+            source_url = COALESCE(EXCLUDED.source_url, assignments.source_url),
+            datetime = EXCLUDED.datetime,
+            deadline = EXCLUDED.deadline,
+            all_day = EXCLUDED.all_day,
             active = 1,
             synced = CASE
-                WHEN assignments.title != excluded.title
-                  OR COALESCE(assignments.raw_title, '') != COALESCE(excluded.raw_title, '')
-                  OR COALESCE(assignments.course, '') != COALESCE(excluded.course, '')
-                  OR COALESCE(assignments.source_url, '') != COALESCE(COALESCE(excluded.source_url, assignments.source_url), '')
-                  OR COALESCE(assignments.deadline, assignments.datetime, '') != COALESCE(excluded.deadline, '')
-                  OR COALESCE(assignments.all_day, 0) != COALESCE(excluded.all_day, 0)
+                WHEN assignments.title != EXCLUDED.title
+                  OR COALESCE(assignments.raw_title, '') != COALESCE(EXCLUDED.raw_title, '')
+                  OR COALESCE(assignments.course, '') != COALESCE(EXCLUDED.course, '')
+                  OR COALESCE(assignments.source_url, '') != COALESCE(COALESCE(EXCLUDED.source_url, assignments.source_url), '')
+                  OR COALESCE(assignments.deadline, assignments.datetime, '') != COALESCE(EXCLUDED.deadline, '')
+                  OR COALESCE(assignments.all_day, 0) != COALESCE(EXCLUDED.all_day, 0)
                   OR COALESCE(assignments.active, 1) != 1
                 THEN 0
                 ELSE assignments.synced
@@ -296,11 +156,10 @@ def insert_assignment(assignment, db_path=DB_PATH):
     return assignment
 
 
-def get_all_assignments(active_only=False, db_path=DB_PATH):
-    init_db(db_path)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
+def get_all_assignments(active_only=False):
+    init_db()
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     where_clause = "WHERE active = 1" if active_only else ""
     cur.execute(
@@ -338,39 +197,39 @@ def get_all_assignments(active_only=False, db_path=DB_PATH):
     return rows
 
 
-def mark_synced(task_id, calendar_event_id=None, db_path=DB_PATH):
-    init_db(db_path)
-    conn = sqlite3.connect(db_path)
+def mark_synced(task_id, calendar_event_id=None):
+    init_db()
+    conn = get_connection()
     cur = conn.cursor()
 
     if calendar_event_id:
         cur.execute(
             """
             UPDATE assignments
-            SET synced = 1, active = 1, calendar_event_id = ?
-            WHERE id = ?
+            SET synced = 1, active = 1, calendar_event_id = %s
+            WHERE id = %s
             """,
             (calendar_event_id, task_id),
         )
     else:
         cur.execute(
-            "UPDATE assignments SET synced = 1, active = 1 WHERE id = ?",
+            "UPDATE assignments SET synced = 1, active = 1 WHERE id = %s",
             (task_id,),
         )
     conn.commit()
     conn.close()
 
 
-def mark_inactive(task_id, db_path=DB_PATH):
-    init_db(db_path)
-    conn = sqlite3.connect(db_path)
+def mark_inactive(task_id):
+    init_db()
+    conn = get_connection()
     cur = conn.cursor()
 
     cur.execute(
         """
         UPDATE assignments
         SET active = 0, synced = 0, calendar_event_id = NULL
-        WHERE id = ?
+        WHERE id = %s
         """,
         (task_id,),
     )
@@ -378,12 +237,90 @@ def mark_inactive(task_id, db_path=DB_PATH):
     conn.close()
 
 
-def save_pdf_url(task_id, pdf_url, db_path=DB_PATH):
-    conn = sqlite3.connect(db_path)
+def save_pdf_url(task_id, pdf_url):
+    conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE assignments SET pdf_url = ? WHERE id = ?",
+        "UPDATE assignments SET pdf_url = %s WHERE id = %s",
         (pdf_url, task_id),
     )
     conn.commit()
     conn.close()
+
+
+def init_user_db():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        email TEXT PRIMARY KEY,
+        moodle_user TEXT,
+        moodle_pass BYTEA
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def save_user_credentials(email, moodle_user, moodle_pass):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO users (email, moodle_user, moodle_pass)
+        VALUES (%s, %s, %s)
+        ON CONFLICT(email) DO UPDATE SET
+            moodle_user = EXCLUDED.moodle_user,
+            moodle_pass = EXCLUDED.moodle_pass
+    """, (email, moodle_user, moodle_pass))
+    conn.commit()
+    conn.close()
+
+
+def get_user_credentials(email):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT moodle_user, moodle_pass FROM users WHERE email=%s",
+        (email,)
+    )
+
+    row = cur.fetchone()
+    conn.close()
+
+    if row:
+        return row[0], row[1]
+
+    return None, None
+
+def init_config_db():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_google_token(token_json):
+    init_config_db()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO system_config (key, value) VALUES ('google_token', %s)
+        ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value
+    """, (token_json,))
+    conn.commit()
+    conn.close()
+
+def get_google_token():
+    init_config_db()
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM system_config WHERE key = 'google_token'")
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else None

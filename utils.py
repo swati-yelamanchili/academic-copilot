@@ -98,3 +98,18 @@ def download_pdf_with_session(pdf_url):
         browser.close()
         return pdf_bytes
 
+
+from cryptography.fernet import Fernet
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+key = os.getenv("ENCRYPTION_KEY").encode()
+fernet = Fernet(key)
+
+def encrypt(text):
+    return fernet.encrypt(text.encode())
+
+def decrypt(token):
+    return fernet.decrypt(token).decode()

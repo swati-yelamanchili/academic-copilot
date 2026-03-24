@@ -1,4 +1,33 @@
-const API_BASE = "http://127.0.0.1:8000";
+const loginUI = document.getElementById("loginUI");
+const mainUI = document.getElementById("mainUI");
+const loginAppBtn = document.getElementById("loginAppBtn");
+
+loginAppBtn.addEventListener("click", () => {
+  chrome.tabs.create({ url: "http://127.0.0.1:5000/" });
+});
+
+fetch("http://127.0.0.1:5000/api/get-credentials", {
+  method: "GET",
+  credentials: "include"
+})
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      loginUI.style.display = "block";
+      return;
+    }
+
+    loginUI.style.display = "none";
+    mainUI.style.display = "block";
+    loadNextTask();
+  })
+  .catch(err => {
+    console.error("Fetch failed:", err);
+    loginUI.style.display = "block";
+  });
+
+
+const API_BASE = "http://127.0.0.1:5000/api";
 const container = document.getElementById("container");
 const status = document.getElementById("status");
 const syncButton = document.getElementById("syncBtn");
@@ -91,7 +120,7 @@ syncButton.addEventListener("click", async () => {
 });
 
 
-loadNextTask();
+// Load is triggered selectively when credentials are valid
 
 
 doneBtn.addEventListener("click", () => {
@@ -179,3 +208,4 @@ submitBtn.addEventListener("click", () => {
 document.getElementById("calendarBtn").addEventListener("click", () => {
   applyCredentialsAndOpen("https://calendar.google.com");
 });
+

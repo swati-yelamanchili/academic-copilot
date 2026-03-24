@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-top: 0; margin-bottom: 20px;">Connect Moodle</h2>
+    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 30px;">
+        Provide your IIIT Moodle credentials so Copilot can automatically fetch your assignments.
+    </p>
+
+    <form method="POST" style="margin-bottom: 0;">
+        <div class="input-group">
+            <label for="username">Moodle Username</label>
+            <input type="text" id="username" name="username" placeholder="e.g. jdoe" required>
+        </div>
+
+        <div class="input-group" style="margin-bottom: 30px;">
+            <label for="password">Moodle Password</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="btn" style="width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;">
+            Save & Sync
+        </button>
+    </form>
+</div>
+{% endblock %}

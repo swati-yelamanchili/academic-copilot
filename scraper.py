@@ -15,21 +15,16 @@ NAVIGATION_RETRY_ERRORS = (
     "ERR_INTERNET_DISCONNECTED",
     "ERR_TIMED_OUT",
 )
-# Selectors that indicate the dashboard shell has loaded (container present)
 DASHBOARD_SHELL_SELECTORS = [
     "section.block_timeline",
     '[data-region="event-list-container"]',
     '[data-region="event-list-wrapper"]',
 ]
-# Selectors that indicate the timeline's AJAX content has finished loading
-# (actual task items OR the Moodle empty-state indicators)
 DASHBOARD_CONTENT_SELECTORS = [
     '[data-region="event-list-item"]',
-    # Moodle renders .empty-message / .no-events / similar nodes when list is empty
     '.block_timeline [data-region="empty-message"]',
     '.block_timeline [data-region="no-events-message"]',
     '.block_timeline .empty-placeholder',
-    # The event-list-wrapper is only injected after AJAX; unlike event-list-container
     '[data-region="event-list-wrapper"]',
 ]
 LOGIN_SELECTORS = [
@@ -53,13 +48,8 @@ def _has_any_selector(page, selectors):
 
 
 def _wait_for_dashboard(page, timeout_ms=300000, poll_ms=1000, ajax_wait_ms=15000):
-    """Two-phase wait:
-    1. Wait for the dashboard shell (container) to appear.
-    2. Wait for AJAX content (actual task items or empty-state) to populate.
-    """
     elapsed = 0
 
-    # Phase 1: wait for dashboard shell
     while elapsed < timeout_ms:
         if _has_any_selector(page, DASHBOARD_SHELL_SELECTORS + DASHBOARD_CONTENT_SELECTORS):
             break
@@ -68,7 +58,6 @@ def _wait_for_dashboard(page, timeout_ms=300000, poll_ms=1000, ajax_wait_ms=1500
     else:
         return False
 
-    # Phase 2: wait for AJAX-populated content (task items or empty state)
     ajax_elapsed = 0
     while ajax_elapsed < ajax_wait_ms:
         if _has_any_selector(page, DASHBOARD_CONTENT_SELECTORS):
@@ -76,8 +65,6 @@ def _wait_for_dashboard(page, timeout_ms=300000, poll_ms=1000, ajax_wait_ms=1500
         page.wait_for_timeout(poll_ms)
         ajax_elapsed += poll_ms
 
-    # If we timed out waiting for AJAX content, still return True if shell was found
-    # (the timeline might be empty and use a selector we didn't anticipate)
     return True
 
 
@@ -184,7 +171,6 @@ def get_dashboard_data(username=None, password=None, headless=None):
             print("Session saved to state.json")
             html = page.content()
 
-            # Extract all assignment links from the dashboard
             from bs4 import BeautifulSoup
             from parser import BASE_PORTAL_URL
             from urllib.parse import urljoin
@@ -196,8 +182,8 @@ def get_dashboard_data(username=None, password=None, headless=None):
                 if "mod/assign" in a.get("href", "")
             ]
 
-            # Visit each assignment page to find its PDF link
-            pdf_map = {}  # source_url -> pdf_url
+            pdf_map = {}
+
             for assign_url in assign_links:
                 try:
                     assign_page = context.new_page()

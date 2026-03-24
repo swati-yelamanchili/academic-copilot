@@ -1,3 +1,10 @@
+import os
+import json
+from flask import Flask, render_template, redirect, url_for, session, request, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
+from authlib.integrations.flask_client import OAuth
+
 from calendar_sync import (
     add_event,
     delete_event,
@@ -6,13 +13,50 @@ from calendar_sync import (
     get_service,
     update_event,
 )
-from db import get_all_assignments, init_db, insert_assignment, mark_inactive, mark_synced, save_pdf_url
+from db import (
+    get_all_assignments,
+    init_db,
+    init_user_db,
+    insert_assignment,
+    mark_inactive,
+    mark_synced,
+    save_pdf_url,
+    get_user_credentials,
+    save_user_credentials
+)
 from parser import (
     build_assignment_dedupe_key,
     build_assignment_identity_key,
     extract_assignments,
 )
 from scraper import get_dashboard_data
+from utils import (
+    encrypt,
+    decrypt,
+    urgency_score,
+    estimate_effort,
+    priority_score
+)
+
+load_dotenv(dotenv_path=".env")
+
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY")
+
+CORS(app, supports_credentials=True)
+oauth = OAuth(app)
+
+google = oauth.register(
+    name='google',
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
+
+init_user_db()
 
 
 def persist_assignments(assignments):
@@ -22,7 +66,6 @@ def persist_assignments(assignments):
     for assignment in assignments:
         deadline = assignment.get("deadline") or assignment.get("datetime")
         if not deadline:
-            print(f"Skipping assignment without deadline: {assignment}")
             continue
 
         identity_key = assignment.get("identity_key") or build_assignment_identity_key(
@@ -73,8 +116,8 @@ def _deactivate_removed_assignments(service, current_assignment_ids):
                 delete_event(service, event.get("id"))
             mark_inactive(task["id"])
             removed_tasks.append(task)
-        except Exception as exc:
-            print(f"Failed to remove stale assignment {task['title']}: {exc}")
+        except Exception:
+            pass
 
     return removed_tasks
 
@@ -111,15 +154,9 @@ def sync_assignments(assignments):
 
             mark_synced(task["id"], existing_event.get("id"))
             unchanged_tasks.append(task)
-        except Exception as exc:
-            print(f"Failed to sync {task['title']}: {exc}")
+        except Exception:
+            pass
 
-    print(
-        f"Added {len(added_tasks)} assignments, "
-        f"updated {len(updated_tasks)}, "
-        f"removed {len(removed_tasks)}, "
-        f"left {len(unchanged_tasks)} unchanged."
-    )
     return {
         "added": added_tasks,
         "updated": updated_tasks,
@@ -127,11 +164,11 @@ def sync_assignments(assignments):
         "unchanged": unchanged_tasks,
     }
 
+
 def run_pipeline():
     try:
         html, pdf_map = get_dashboard_data()
-    except RuntimeError as exc:
-        print(exc)
+    except RuntimeError:
         return {
             "added": 0,
             "updated": 0,
@@ -142,7 +179,6 @@ def run_pipeline():
     assignments = extract_assignments(html)
     saved_assignments = persist_assignments(assignments)
 
-    # Save PDF URLs discovered during scraping
     for assignment in saved_assignments:
         url = pdf_map.get(assignment.get("source_url"))
         if url:
@@ -158,26 +194,163 @@ def run_pipeline():
     }
 
 
-def main():
-    try:
-        html, pdf_map = get_dashboard_data()
-    except RuntimeError as exc:
-        print(exc)
-        return
+def _serialize_assignment(row):
+    datetime_value = row.get("datetime")
+    if not datetime_value:
+        return None
 
-    assignments = extract_assignments(html)
-    saved_assignments = persist_assignments(assignments)
+    urgency = urgency_score(row["datetime"])
+    effort = estimate_effort(row["title"])
+    overdue = urgency == 5
 
-    for assignment in saved_assignments:
-        url = pdf_map.get(assignment.get("source_url"))
-        if url:
-            save_pdf_url(assignment["id"], url)
-        print(assignment)
+    return {
+        "title": row["title"],
+        "course": row.get("course"),
+        "datetime": datetime_value,
+        "urgency": urgency,
+        "effort": effort,
+        "priority": priority_score(urgency, effort, overdue),
+    }
 
-    print(f"Saved {len(saved_assignments)} current assignments to tasks.db")
-    sync_assignments(saved_assignments)
+
+def _ranked_assignments():
+    items = []
+    for row in get_all_assignments(active_only=True):
+        item = _serialize_assignment(row)
+        if item is not None:
+            items.append(item)
+
+    items.sort(key=lambda item: item["priority"], reverse=True)
+    return items
+
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
+@app.route("/login")
+def login():
+    nonce = os.urandom(16).hex()
+    session["nonce"] = nonce
+
+    return google.authorize_redirect(
+        url_for("callback", _external=True),
+        nonce=nonce
+    )
+
+
+@app.route("/callback")
+def callback():
+    token = google.authorize_access_token()
+    user = google.parse_id_token(
+        token,
+        nonce=session.get("nonce")
+    )
+
+    session["user"] = user
+    return redirect("/setup")
+
+
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    if "user" not in session:
+        return redirect("/")
+
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        encrypted_password = encrypt(password)
+        save_user_credentials(
+            email=session["user"]["email"],
+            moodle_user=username,
+            moodle_pass=encrypted_password
+        )
+
+        return render_template("success.html")
+
+    return render_template("setup.html")
+
+
+@app.route("/api/get-credentials")
+def get_credentials():
+    if "user" not in session:
+        return jsonify({"error": "not logged in"}), 401
+
+    email = session["user"]["email"]
+    username, encrypted_password = get_user_credentials(email)
+
+    if not username:
+        return jsonify({"error": "not setup"}), 404
+
+    password = decrypt(encrypted_password)
+    return jsonify({
+        "username": username,
+        "password": password
+    })
+
+
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/assignments")
+def get_assignments():
+    return jsonify(_ranked_assignments())
+
+
+@app.route("/api/sync")
+def sync_now():
+    result = run_pipeline()
+    return jsonify({
+        "status": "updated",
+        **result,
+    })
+
+
+@app.route("/api/next")
+def next_task():
+    rows = get_all_assignments(active_only=True)
+    result = []
+    
+    for r in rows:
+        item = {
+            "id": r["id"],
+            "title": r["title"],
+            "course": r["course"],
+            "datetime": r["datetime"],
+            "urgency": urgency_score(r["datetime"]),
+            "effort": estimate_effort(r["title"]),
+            "pdf_url": r.get("pdf_url"),
+            "source_url": r.get("source_url"),
+        }
+        item["priority"] = priority_score(item["urgency"], item["effort"])
+        result.append(item)
+
+    if not result:
+        return jsonify({})
+
+    result.sort(key=lambda x: x["priority"], reverse=True)
+    return jsonify(result[0])
+
+
+@app.route("/api/done", methods=["POST"])
+def mark_done():
+    task_id = request.args.get("task_id")
+    mark_inactive(task_id)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/cookies")
+def get_cookies():
+    if os.path.exists("state.json"):
+        with open("state.json", "r") as f:
+            state = json.load(f)
+            return jsonify({"cookies": state.get("cookies", [])})
+    return jsonify({"cookies": []})
 
 
 if __name__ == "__main__":
-    main()
-
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

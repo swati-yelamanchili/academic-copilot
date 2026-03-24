@@ -8,6 +8,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google_auth_oauthlib.flow import InstalledAppFlow
 
+from db import get_google_token, save_google_token
+
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 REMINDER_MINUTES = [180, 720, 1440, 4320]
 CALENDAR_ID = "primary"
@@ -19,6 +21,11 @@ TOKEN_PATH = "token.json"
 
 def get_service():
     creds = None
+    token_json_str = get_google_token()
+
+    if token_json_str:
+        with open(TOKEN_PATH, "w", encoding="utf-8") as f:
+            f.write(token_json_str)
 
     if os.path.exists(TOKEN_PATH):
         creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
@@ -30,6 +37,7 @@ def get_service():
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             creds = flow.run_local_server(port=0)
 
+        save_google_token(creds.to_json())
         with open(TOKEN_PATH, "w", encoding="utf-8") as token_file:
             token_file.write(creds.to_json())
 

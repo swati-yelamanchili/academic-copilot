@@ -198,7 +198,8 @@ def extract_assignments(html):
         if not raw_title:
             continue
 
-        source_url = _clean_href(title_node)
+        mod_link = event.find("a", href=lambda h: h and "mod/" in h)
+        source_url = _clean_href(mod_link) if mod_link else _clean_href(title_node)
         date_node = event.find_previous(attrs={"data-region": "event-list-content-date"})
         date_text = _clean_text(date_node)
         time_text = _extract_time(event)
