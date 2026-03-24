@@ -55,7 +55,7 @@ app.config.update(
 
 CORS(app, supports_credentials=True, origins=[
     r"chrome-extension://.*",
-    "https://academic-copilot.onrender.com",
+    "https://academicopilot.onrender.com",
 ])
 oauth = OAuth(app)
 

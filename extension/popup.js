@@ -4,10 +4,10 @@ const mainUI = document.getElementById("mainUI");
 const loginAppBtn = document.getElementById("loginAppBtn");
 
 loginAppBtn.addEventListener("click", () => {
-  chrome.tabs.create({ url: "https://academic-copilot.onrender.com/" });
+  chrome.tabs.create({ url: "https://academicopilot.onrender.com/" });
 });
 
-fetch("https://academic-copilot.onrender.com/api/get-credentials", {
+fetch("https://academicopilot.onrender.com/api/get-credentials", {
   method: "GET"
 })
   .then(response => response.json())
@@ -29,7 +29,7 @@ fetch("https://academic-copilot.onrender.com/api/get-credentials", {
   });
 
 
-const API_BASE = "https://academic-copilot.onrender.com/api";
+const API_BASE = "https://academicopilot.onrender.com/api";
 const container = document.getElementById("container");
 const status = document.getElementById("status");
 const syncButton = document.getElementById("syncBtn");
