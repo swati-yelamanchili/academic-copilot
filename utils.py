@@ -112,4 +112,9 @@ def encrypt(text):
     return fernet.encrypt(text.encode())
 
 def decrypt(token):
+    # psycopg2 returns BYTEA as memoryview; coerce to bytes before decrypting
+    if isinstance(token, memoryview):
+        token = bytes(token)
+    elif isinstance(token, str):
+        token = token.encode()
     return fernet.decrypt(token).decode()
