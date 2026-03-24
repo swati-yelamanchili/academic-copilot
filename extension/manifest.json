@@ -10,7 +10,7 @@
     "cookies"
   ],
   "host_permissions": [
-    "http://127.0.0.1:8000/*",
+    "https://academic-copilot.onrender.com/*",
     "*://*.iiit.ac.in/*",
     "*://*.google.com/*"
   ]

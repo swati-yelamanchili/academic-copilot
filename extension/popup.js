@@ -3,10 +3,10 @@ const mainUI = document.getElementById("mainUI");
 const loginAppBtn = document.getElementById("loginAppBtn");
 
 loginAppBtn.addEventListener("click", () => {
-  chrome.tabs.create({ url: "http://127.0.0.1:5000/" });
+  chrome.tabs.create({ url: "https://academic-copilot.onrender.com/" });
 });
 
-fetch("http://127.0.0.1:5000/api/get-credentials", {
+fetch("https://academic-copilot.onrender.com/api/get-credentials", {
   method: "GET",
   credentials: "include"
 })
@@ -27,7 +27,7 @@ fetch("http://127.0.0.1:5000/api/get-credentials", {
   });
 
 
-const API_BASE = "http://127.0.0.1:5000/api";
+const API_BASE = "https://academic-copilot.onrender.com/api";
 const container = document.getElementById("container");
 const status = document.getElementById("status");
 const syncButton = document.getElementById("syncBtn");

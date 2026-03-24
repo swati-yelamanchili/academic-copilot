@@ -1,31 +1,28 @@
 # 🎓 Academic Copilot
 
-Academic Copilot is a local browser extension and Python backend that automatically tracks your academic assignments, ranks them by priority and urgency, syncs them directly to Google Calendar, and allows you to view associated assignment PDFs.
+Academic Copilot is a cloud-hosted Python backend and local browser extension that automatically tracks your academic assignments, ranks them by priority and effort, syncs them to Google Calendar, and allows you to quickly view associated assignment PDFs.
 
 > **Note:** This project is designed specifically to match the IIIT Hyderabad college Moodle structure for scraping assignments. You may need to adapt the Playwright scraper in `scraper.py` if you intend to use it with other university portals.
-
-Designed to keep you on top of your coursework without manual data entry, it seamlessly aggregates your tasks into one unified dashboard.
 
 ---
 
 ## ✨ Features
 
-- **✅ Automated Assignment Scraping**: Headless browser extraction of your upcoming assignments directly from your university portal.
+- **✅ Automated Assignment Scraping**: Headless Playwright extraction of your upcoming assignments directly from your university portal.
 - **🧠 Smart Ranking Algorithm**: Calculates an urgency and effort score to prioritize your focus automatically.
-- **📅 Google Calendar Sync**: Pushes assignments to your Google Calendar as events, keeping your schedule up to date.
-- **🧩 Browser Extension**: A sleek, dark-mode inspired Chrome/Edge extension to quickly view your next highest-priority task, its deadline, and a direct link to the assignment PDF.
+- **📅 Google Calendar Sync**: Pushes assignments into your Google Calendar as events natively using the Google Calendar API.
+- **🧩 Browser Extension**: A sleek Chrome/Edge extension to quickly view your highest-priority tasks, deadlines, and a direct link to the assignment submission page.
+- **☁️ Cloud Ready**: Unified Flask architecture backed by PostgreSQL, completely ready to immediately run on Render.
 
 ---
 
 ## 🚀 Installation & Setup
 
-Follow these steps to run Academic Copilot on your local machine.
+### 1. Local Development Requirements
 
-### 1. Requirements
-
-- **Python 3.10+** (Python 3.12 is recommended).
+- **Python 3.10+** (Python 3.12 recommended).
 - **Google Cloud Platform account** (for Calendar Sync).
-- A Chromium-based browser (Chrome, Edge, Brave) to load the extension.
+- **PostgreSQL server** (local or cloud-hosted via Supabase/Neon).
 
 ### 2. Environment Setup
 
@@ -38,18 +35,12 @@ Follow these steps to run Academic Copilot on your local machine.
 2. **Create and activate a virtual environment:**
    ```bash
    python -m venv app
-   source app/bin/activate  # On MacOS/Linux
-   # On Windows: app\Scripts\activate
+   source app/bin/activate  # On MacOS/Linux (Windows: app\Scripts\activate)
    ```
 
 3. **Install dependencies:**
    ```bash
-   pip install -r requirement.txt
-   ```
-
-4. **Install Playwright Browsers:**
-   Since Academic Copilot uses Playwright to scrape your portal, you need to install the Chromium browser engine:
-   ```bash
+   pip install -r requirements.txt
    playwright install chromium
    ```
 
@@ -57,115 +48,50 @@ Follow these steps to run Academic Copilot on your local machine.
 
 ## 🔒 Configuration
 
-You need to provide credentials for both the university portal scraper and Google Calendar sync.
+You will need to provide your exact authentication keys and database credentials to your hosting provider (such as Render) during the deployment process.
 
-### 1. Environment Variables (`.env`)
-
-Create a `.env` file in the root directory. This securely stores your university login credentials so the headless scraper can access your portal.
-
-Add the following lines to your `.env` file:
-```env
-# Your university portal login credentials
-ACADEMIC_COPILOT_USERNAME=your_student_username
-ACADEMIC_COPILOT_PASSWORD=your_student_password
-
-# Optional: Run the browser visibly for debugging (set to true or false)
-ACADEMIC_COPILOT_HEADLESS=true
-```
-
-> **Note:** The `.env` file is included in `.gitignore` and will never be committed to GitHub.
-
-### 2. Google Calendar Sync (`credentials.json`)
-
-To sync tasks to Google Calendar:
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a new project and enable the **Google Calendar API**.
-3. Go to **Credentials** > **Create Credentials** > **OAuth client ID**.
-4. Choose **Desktop App** as the application type.
-5. Download the JSON credentials file and rename it to `credentials.json`.
-6. Place `credentials.json` in the root of the project directory.
-
-*Note: On your first run, the app will open a browser window asking you to authenticate with your Google account. It will then save a `token.json` file locally for future runs.*
-
-### 3. Playwright Session (`state.json`)
-
-The backend securely saves your authenticated university portal session in a local `state.json` file. This prevents the need to log in manually every time the scraper runs. This file is also git-ignored.
+Place your `credentials.json` (Google Desktop App OAuth file) in the root directory before running or deploying.
 
 ---
 
-## 🛠️ Usage
+## 🛠️ Deployment (Render)
 
-### 1. Running the Backend Server
+This application is architected to deploy flawlessly on [Render](https://render.com) using its free tier.
 
-Academic Copilot relies on a local FastAPI backend to feed data to the browser extension.
+**Web Service Setup:**
+1. Connect your GitHub repository.
+2. Select **Python 3** environment.
+3. **Build Command**: `pip install -r requirements.txt && playwright install chromium`
+4. **Start Command**: `gunicorn main:app`
+5. Add all the properties from your `.env` into the Environment Variables table.
 
-```bash
-# Ensure your virtual environment is activated
-source app/bin/activate
+---
 
-# Run the backend server
-uvicorn api:app --reload
-# or natively via Python:
-# python api.py
-```
-The server will now be running at `http://127.0.0.1:8000`.
+## 🧩 Loading the Extension
 
-### 2. Loading the Extension
+1. After deploying the backend, open `extension/popup.js`.
+2. Update the `API_BASE` to match your deployed URL (e.g. `https://your-app.onrender.com/api`).
+3. Open your Chromium-based browser and navigate to `chrome://extensions/`.
+4. Toggle **Developer mode** on.
+5. Click **Load unpacked** and select the `extension` folder.
+6. Click the extension icon. If it asks you to connect, it will open your deployed portal to securely sign in with Google and enter your Moodle credentials!
 
-1. Open your Chromium-based browser (Chrome, Edge, Brave).
-2. Navigate to your extensions page (`chrome://extensions/` or `edge://extensions/`).
-3. Toggle **Developer mode** on (usually in the top right corner).
-4. Click **Load unpacked**.
-5. Select the `extension` folder located inside this repository.
+## 🎮 How to Use
 
-### 3. Using the Extension
+Once the extension is installed and your backend is deployed:
 
-- Click the **Academic Copilot** icon in your browser toolbar.
-- The sleek popup will display your top-priority assignment and its deadline.
-- Click **Sync** to trigger the backend to scrape new assignments and sync them with Google Calendar.
-- Click **Read PDF** to directly open the assignment instructions.
-- Click **Mark Complete** to remove the task from your prioritized list.
-
-### 4. Running Automatically on Linux Startup (Optional)
-
-To have the Academic Copilot backend start automatically in the background when your Linux computer boots, you can create a `systemd` service.
-
-1. Create a service file:
-   ```bash
-   sudo nano /etc/systemd/system/academic-copilot.service
-   ```
-
-2. Add the following configuration (replace `/path/to/academic-copilot` with your actual absolute directory path and `your_username` with your Linux username):
-   ```ini
-   [Unit]
-   Description=Academic Copilot API Backend
-   After=network.target
-
-   [Service]
-   User=your_username
-   WorkingDirectory=/path/to/academic-copilot
-   ExecStart=/path/to/academic-copilot/app/bin/uvicorn api:app --host 127.0.0.1 --port 8000
-   Restart=always
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-3. Enable and start the service:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable academic-copilot.service
-   sudo systemctl start academic-copilot.service
-   ```
-
-Now the backend will quietly run in the background automatically whenever your machine is on!
+1. **Connect Your Account**: Click the Academic Copilot extension icon in your browser. Click **Connect Account**, which will open your deployed website. Log in securely with Google and enter your university Moodle credentials.
+2. **View Your Next Priority**: Click the extension icon anytime to instantly see your highest-priority upcoming assignment, automatically ranked by urgency and estimated effort.
+3. **Sync Assignments**: Click the **Sync** button in the extension. The backend will quietly log into your university portal, scrape any new assignments, rank them, and flawlessly add them as events to your Google Calendar.
+4. **Read PDF**: Click the **Read PDF** button to jump straight to the assignment's attached instruction document (if the scraper found one).
+5. **Submit**: Click the **Submit** button to instantly open the exact Moodle submission page for that specific assignment, skipping the dashboard navigation entirely.
+6. **Mark Complete**: Done with the task? Click **Mark Complete** to remove it from your priority queue and cross it off your radar!
 
 ---
 
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!
-Feel free to check out the [issues page](../../issues).
 
 ## 📝 License
 
