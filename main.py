@@ -22,7 +22,8 @@ from db import (
     mark_synced,
     save_pdf_url,
     get_user_credentials,
-    save_user_credentials
+    save_user_credentials,
+    get_primary_user_credentials
 )
 from parser import (
     build_assignment_dedupe_key,
@@ -280,19 +281,14 @@ def setup():
 
 @app.route("/api/get-credentials")
 def get_credentials():
-    if "user" not in session:
-        return jsonify({"error": "not logged in"}), 401
-
-    email = session["user"]["email"]
-    username, encrypted_password = get_user_credentials(email)
+    username, _ = get_primary_user_credentials()
 
     if not username:
         return jsonify({"error": "not setup"}), 404
 
-    password = decrypt(encrypted_password)
     return jsonify({
         "username": username,
-        "password": password
+        "password": "***"
     })
 
 
@@ -308,11 +304,7 @@ def get_assignments():
 
 @app.route("/api/sync")
 def sync_now():
-    if "user" not in session:
-        return jsonify({"error": "not logged in"}), 401
-
-    email = session["user"]["email"]
-    username, encrypted_password = get_user_credentials(email)
+    username, encrypted_password = get_primary_user_credentials()
 
     if not username:
         return jsonify({"error": "not setup"}), 400

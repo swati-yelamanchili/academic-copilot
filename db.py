@@ -276,6 +276,17 @@ def save_user_credentials(email, moodle_user, moodle_pass):
     conn.close()
 
 
+def get_primary_user_credentials():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT moodle_user, moodle_pass FROM users LIMIT 1")
+    row = cur.fetchone()
+    conn.close()
+    if row:
+        return row[0], row[1]
+    return None, None
+
+
 def get_user_credentials(email):
     conn = get_connection()
     cur = conn.cursor()
