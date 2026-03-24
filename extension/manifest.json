@@ -7,7 +7,8 @@
   },
   "permissions": [
     "storage",
-    "cookies"
+    "cookies",
+    "tabs"
   ],
   "host_permissions": [
     "https://academic-copilot.onrender.com/*",

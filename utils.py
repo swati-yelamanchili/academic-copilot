@@ -10,7 +10,11 @@ def urgency_score(dt_str):
         return 0
 
     deadline = datetime.datetime.fromisoformat(dt_str)
-    now = datetime.datetime.now()
+    # Use tz-aware now() if the stored deadline is tz-aware, to avoid TypeError
+    if deadline.tzinfo is not None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    else:
+        now = datetime.datetime.now()
 
     delta = (deadline - now).total_seconds() / 3600  # hours
 

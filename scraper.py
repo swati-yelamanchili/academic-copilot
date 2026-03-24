@@ -111,18 +111,21 @@ def _env_flag(name, default=False):
 
 
 def _login_with_credentials(page, username, password):
-    username_input = page.locator('input[name="username"], input[type="email"]').first
-    password_input = page.locator('input[type="password"]').first
+    username_locator = page.locator('input[name="username"], input[type="email"]')
+    password_locator = page.locator('input[type="password"]')
 
-    if username_input.count() == 0 or password_input.count() == 0:
+    if username_locator.count() == 0 or password_locator.count() == 0:
         return False
+
+    username_input = username_locator.first
+    password_input = password_locator.first
 
     username_input.fill(username)
     password_input.fill(password)
 
-    submit_button = page.locator('button[type="submit"], input[type="submit"]').first
-    if submit_button.count():
-        submit_button.click()
+    submit_locator = page.locator('button[type="submit"], input[type="submit"]')
+    if submit_locator.count():
+        submit_locator.first.click()
     else:
         password_input.press("Enter")
 

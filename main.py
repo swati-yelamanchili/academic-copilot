@@ -23,7 +23,8 @@ from db import (
     save_pdf_url,
     get_user_credentials,
     save_user_credentials,
-    get_primary_user_credentials
+    get_primary_user_credentials,
+    save_google_token,
 )
 from parser import (
     build_assignment_dedupe_key,
@@ -49,7 +50,10 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
 )
 
-CORS(app, supports_credentials=True)
+CORS(app, supports_credentials=True, origins=[
+    "chrome-extension://",
+    "https://academic-copilot.onrender.com",
+])
 oauth = OAuth(app)
 
 google = oauth.register(
@@ -284,6 +288,12 @@ def setup():
             moodle_user=username,
             moodle_pass=encrypted_password
         )
+
+        # Immediately run the pipeline after saving credentials
+        try:
+            run_pipeline(username, password)
+        except Exception as e:
+            print(f"Initial sync after setup failed: {e}")
 
         return render_template("success.html")
 
