@@ -8,8 +8,7 @@ loginAppBtn.addEventListener("click", () => {
 });
 
 fetch("https://academic-copilot.onrender.com/api/get-credentials", {
-  method: "GET",
-  credentials: "include"
+  method: "GET"
 })
   .then(response => response.json())
   .then(data => {
@@ -77,9 +76,7 @@ function renderTask(item) {
 
 
 async function fetchJson(path) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: "include"
-  });
+  const response = await fetch(`${API_BASE}${path}`);
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
@@ -136,7 +133,7 @@ doneBtn.addEventListener("click", () => {
 
   status.textContent = "Deleting...";
 
-  fetch(`${API_BASE}/done?task_id=${currentTask.id}`, { method: "POST", credentials: "include" })
+  fetch(`${API_BASE}/done?task_id=${currentTask.id}`, { method: "POST" })
     .then(res => res.json())
     .then(() => {
       status.textContent = "Task completed!";

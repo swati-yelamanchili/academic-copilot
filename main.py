@@ -130,7 +130,18 @@ def _deactivate_removed_assignments(service, current_assignment_ids):
 
 def sync_assignments(assignments):
     current_assignment_ids = {_assignment_id(assignment) for assignment in assignments}
-    service = get_service()
+
+    try:
+        service = get_service()
+    except RuntimeError as e:
+        print(f"Google Calendar unavailable: {e}")
+        # Return without syncing to calendar — assignments are still saved to DB
+        return {
+            "added": [],
+            "updated": [],
+            "removed": [],
+            "unchanged": [],
+        }
 
     removed_tasks = _deactivate_removed_assignments(service, current_assignment_ids)
     current_tasks = [
@@ -309,13 +320,18 @@ def sync_now():
     if not username:
         return jsonify({"error": "not setup"}), 400
 
-    password = decrypt(encrypted_password)
+    try:
+        password = decrypt(encrypted_password)
+        result = run_pipeline(username, password)
+        return jsonify({
+            "status": "updated",
+            **result,
+        })
+    except Exception as e:
+        # Log the exception (in real deployment you would use proper logging)
+        print(f"Sync failed: {e}")
+        return jsonify({"error": "sync_failed", "message": str(e)}), 500
 
-    result = run_pipeline(username, password)
-    return jsonify({
-        "status": "updated",
-        **result,
-    })
 
 
 @app.route("/api/next")
@@ -358,6 +374,17 @@ def get_cookies():
             state = json.load(f)
             return jsonify({"cookies": state.get("cookies", [])})
     return jsonify({"cookies": []})
+
+
+@app.route("/api/upload-token", methods=["POST"])
+def upload_token():
+    """Upload a locally-generated token.json so the server can use it for Calendar sync."""
+    data = request.get_json(force=True)
+    token_json = data.get("token")
+    if not token_json:
+        return jsonify({"error": "No token provided"}), 400
+    save_google_token(token_json if isinstance(token_json, str) else json.dumps(token_json))
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":

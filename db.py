@@ -283,7 +283,8 @@ def get_primary_user_credentials():
     row = cur.fetchone()
     conn.close()
     if row:
-        return row[0], row[1]
+        # psycopg2 returns BYTEA as memoryview; convert to bytes for Fernet
+        return row[0], bytes(row[1]) if row[1] else None
     return None, None
 
 
@@ -300,7 +301,8 @@ def get_user_credentials(email):
     conn.close()
 
     if row:
-        return row[0], row[1]
+        # psycopg2 returns BYTEA as memoryview; convert to bytes for Fernet
+        return row[0], bytes(row[1]) if row[1] else None
 
     return None, None
 

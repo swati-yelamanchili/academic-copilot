@@ -33,13 +33,15 @@ def get_service():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            save_google_token(creds.to_json())
+            with open(TOKEN_PATH, "w", encoding="utf-8") as token_file:
+                token_file.write(creds.to_json())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        save_google_token(creds.to_json())
-        with open(TOKEN_PATH, "w", encoding="utf-8") as token_file:
-            token_file.write(creds.to_json())
+            raise RuntimeError(
+                "Google Calendar token is missing or expired and cannot be refreshed. "
+                "Run `python calendar_sync.py` locally to generate a fresh token.json, "
+                "then upload it via the /api/upload-token endpoint."
+            )
 
     return build("calendar", "v3", credentials=creds)
 
