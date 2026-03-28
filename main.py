@@ -1,4 +1,5 @@
 import os
+import traceback
 import json
 from flask import Flask, render_template, redirect, url_for, session, request, jsonify
 from flask_cors import CORS
@@ -130,7 +131,7 @@ def _deactivate_removed_assignments(service, current_assignment_ids):
             mark_inactive(task["id"])
             removed_tasks.append(task)
         except Exception:
-            pass
+            print(f"Error deactivating task {task.get('id')}: {traceback.format_exc()}")
 
     return removed_tasks
 
@@ -179,7 +180,7 @@ def sync_assignments(assignments):
             mark_synced(task["id"], existing_event.get("id"))
             unchanged_tasks.append(task)
         except Exception:
-            pass
+            print(f"Error syncing task {task.get('id')}: {traceback.format_exc()}")
 
     return {
         "added": added_tasks,
@@ -367,7 +368,7 @@ def next_task():
         result.append(item)
 
     if not result:
-        return jsonify({})
+        return jsonify(None)
 
     result.sort(key=lambda x: x["priority"], reverse=True)
     return jsonify(result[0])
@@ -376,6 +377,8 @@ def next_task():
 @app.route("/api/done", methods=["POST"])
 def mark_done():
     task_id = request.args.get("task_id")
+    if not task_id:
+        return jsonify({"error": "task_id is required"}), 400
     mark_inactive(task_id)
     return jsonify({"status": "ok"})
 

@@ -23,4 +23,4 @@ COPY . .
 EXPOSE 5000
 
 # Start server
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "600", "--workers", "2", "main:app"]

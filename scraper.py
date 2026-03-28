@@ -179,8 +179,7 @@ def get_dashboard_data(username=None, password=None, headless=None):
             # Additional explicit wait for DOM to stabilize
             page.wait_for_timeout(3000)
 
-            context = page.context
-            context.storage_state(path="state.json")
+            page.context.storage_state(path="state.json")
             print("Session saved to state.json")
             html = page.content()
 

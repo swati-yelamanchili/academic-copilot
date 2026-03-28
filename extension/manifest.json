@@ -11,7 +11,7 @@
     "tabs"
   ],
   "host_permissions": [
-    "https://academic-copilot.onrender.com/*",
+    "https://academicopilot.onrender.com/*",
     "*://*.iiit.ac.in/*",
     "*://*.google.com/*"
   ]

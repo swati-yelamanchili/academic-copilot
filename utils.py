@@ -106,13 +106,14 @@ def download_pdf_with_session(pdf_url):
 
 
 from cryptography.fernet import Fernet
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-key = os.getenv("ENCRYPTION_KEY").encode()
-fernet = Fernet(key)
+_encryption_key = os.getenv("ENCRYPTION_KEY")
+if not _encryption_key:
+    raise RuntimeError(
+        "ENCRYPTION_KEY environment variable is not set. "
+        "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    )
+fernet = Fernet(_encryption_key.encode())
 
 def encrypt(text):
     return fernet.encrypt(text.encode())
