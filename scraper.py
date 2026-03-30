@@ -139,6 +139,7 @@ def get_dashboard_data(username=None, password=None, headless=None):
         headless = _env_flag(HEADLESS_ENV, default=bool(username and password))
 
     with sync_playwright() as playwright:
+        print("[SCRAPER] Launching Chromium (headless={})...".format(headless))
         browser = playwright.chromium.launch(headless=headless)
         context = browser.new_context()
         page = context.new_page()
@@ -146,29 +147,33 @@ def get_dashboard_data(username=None, password=None, headless=None):
 
         try:
             _goto_with_retries(page, DASHBOARD_URL)
+            print(f"[SCRAPER] Navigated to {DASHBOARD_URL}")
             login_required = _has_any_selector(page, LOGIN_SELECTORS)
 
             if login_required and username and password:
-                print("Attempting automated portal login.")
+                print("[SCRAPER] Login form detected, attempting automated login...")
                 if not _login_with_credentials(page, username, password):
                     raise RuntimeError(
                         "Could not find the login form fields needed for automated sign-in."
                     )
+                print("[SCRAPER] Login credentials submitted")
             elif login_required:
                 print(
                     "Complete the login flow in the opened browser. "
                     "The scraper will continue automatically as soon as the dashboard appears."
                 )
+            else:
+                print("[SCRAPER] No login required (already authenticated)")
 
             if not _wait_for_dashboard(page):
-                print(f"Current URL when detection failed: {page.url}")
+                print(f"[SCRAPER] Dashboard detection FAILED at URL: {page.url}")
                 raise RuntimeError(
                     "Could not detect the dashboard timeline after login. "
                     "The browser stayed open until detection finished, but the page "
                     "did not expose the expected timeline elements."
                 )
 
-            print("Dashboard timeline detected.")
+            print("[SCRAPER] Dashboard timeline detected.")
             
             # Wait for any active network requests to settle so AJAX loads tasks
             try:
@@ -180,8 +185,9 @@ def get_dashboard_data(username=None, password=None, headless=None):
             page.wait_for_timeout(3000)
 
             page.context.storage_state(path="state.json")
-            print("Session saved to state.json")
+            print("[SCRAPER] Session saved to state.json")
             html = page.content()
+            print(f"[SCRAPER] Captured HTML: {len(html)} chars")
 
             from bs4 import BeautifulSoup
             from parser import BASE_PORTAL_URL
@@ -193,6 +199,7 @@ def get_dashboard_data(username=None, password=None, headless=None):
                 for a in soup.select('[data-region="event-list-item"] a[href]')
                 if "mod/assign" in a.get("href", "")
             ]
+            print(f"[SCRAPER] Found {len(assign_links)} assignment links to check for PDFs")
 
             pdf_map = {}
 
@@ -208,12 +215,14 @@ def get_dashboard_data(username=None, password=None, headless=None):
                             ".pdf" in href.lower() or "forcedownload" in href
                         ):
                             pdf_map[assign_url] = href
+                            print(f"[SCRAPER]   PDF found for {assign_url}")
                             break
 
                     assign_page.close()
                 except Exception as exc:
-                    print(f"Could not get PDF for {assign_url}: {exc}")
+                    print(f"[SCRAPER]   Could not get PDF for {assign_url}: {exc}")
 
+            print(f"[SCRAPER] Scraping complete: {len(pdf_map)} PDFs mapped")
             browser.close()
             closed = True
             return html, pdf_map

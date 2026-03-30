@@ -45,6 +45,15 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 load_dotenv(dotenv_path=".env")
 
+# ── Startup env-var check (Checklist #7) ─────────────────────────────
+_required_env = ["SECRET_KEY", "DATABASE_URL", "ENCRYPTION_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
+for _var in _required_env:
+    _val = os.getenv(_var)
+    if _val:
+        print(f"[STARTUP] ✅ {_var} is set ({len(_val)} chars)")
+    else:
+        print(f"[STARTUP] ❌ {_var} is MISSING!")
+
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.getenv("SECRET_KEY")
@@ -58,6 +67,7 @@ CORS(app, supports_credentials=True, origins=[
     r"chrome-extension://.*",
     "https://academicopilot.onrender.com",
 ])
+print("[STARTUP] CORS configured for chrome-extension://* and academicopilot.onrender.com")
 oauth = OAuth(app)
 
 google = oauth.register(
@@ -74,12 +84,14 @@ init_user_db()
 
 
 def persist_assignments(assignments):
+    print(f"[PIPELINE] Persisting {len(assignments)} assignments to DB...")
     init_db()
     deduped_assignments = {}
 
     for assignment in assignments:
         deadline = assignment.get("deadline") or assignment.get("datetime")
         if not deadline:
+            print(f"[PIPELINE]   Skipping assignment with no deadline: {assignment.get('title')}")
             continue
 
         identity_key = assignment.get("identity_key") or build_assignment_identity_key(
@@ -99,10 +111,12 @@ def persist_assignments(assignments):
         assignment["id"] = identity_key
         deduped_assignments[identity_key] = assignment
 
+    print(f"[PIPELINE] After dedup: {len(deduped_assignments)} unique assignments")
     saved_assignments = []
     for assignment in deduped_assignments.values():
         saved_assignments.append(insert_assignment(assignment))
 
+    print(f"[PIPELINE] Persisted {len(saved_assignments)} assignments to DB")
     return saved_assignments
 
 
@@ -191,9 +205,13 @@ def sync_assignments(assignments):
 
 
 def run_pipeline(username=None, password=None):
+    print(f"[PIPELINE] ===== run_pipeline START (user={username}) =====")
     try:
+        print("[PIPELINE] Step 1/4: Fetching dashboard from Moodle...")
         html, pdf_map = get_dashboard_data(username=username, password=password)
-    except RuntimeError:
+        print(f"[PIPELINE] Step 1/4: Got HTML ({len(html)} chars), {len(pdf_map)} PDF links")
+    except RuntimeError as e:
+        print(f"[PIPELINE] Step 1/4: FAILED — {e}")
         return {
             "added": 0,
             "updated": 0,
@@ -201,7 +219,11 @@ def run_pipeline(username=None, password=None):
             "unchanged": 0,
         }
 
+    print("[PIPELINE] Step 2/4: Parsing assignments from HTML...")
     assignments = extract_assignments(html)
+    print(f"[PIPELINE] Step 2/4: Parsed {len(assignments)} assignments")
+
+    print("[PIPELINE] Step 3/4: Persisting to database...")
     saved_assignments = persist_assignments(assignments)
 
     for assignment in saved_assignments:
@@ -209,14 +231,17 @@ def run_pipeline(username=None, password=None):
         if url:
             save_pdf_url(assignment["id"], url)
 
+    print("[PIPELINE] Step 4/4: Syncing to Google Calendar...")
     result = sync_assignments(saved_assignments)
 
-    return {
+    summary = {
         "added": len(result["added"]),
         "updated": len(result["updated"]),
         "removed": len(result["removed"]),
         "unchanged": len(result["unchanged"]),
     }
+    print(f"[PIPELINE] ===== run_pipeline DONE: {summary} =====")
+    return summary
 
 
 def _serialize_assignment(row):
@@ -306,11 +331,14 @@ def setup():
 
 @app.route("/api/get-credentials")
 def get_credentials():
+    print("[API] Request received: /api/get-credentials")
     username, _ = get_primary_user_credentials()
 
     if not username:
+        print("[API] No credentials found → 404")
         return jsonify({"error": "not setup"}), 404
 
+    print(f"[API] Credentials found for user: {username}")
     return jsonify({
         "username": username,
         "password": "***"
@@ -319,38 +347,50 @@ def get_credentials():
 
 @app.route("/api/health")
 def health():
+    print("[API] Request received: /api/health")
     return jsonify({"status": "ok"})
 
 
 @app.route("/api/assignments")
 def get_assignments():
-    return jsonify(_ranked_assignments())
+    print("[API] Request received: /api/assignments")
+    items = _ranked_assignments()
+    print(f"[API] Returning {len(items)} ranked assignments")
+    return jsonify(items)
 
 
 @app.route("/api/sync")
 def sync_now():
+    print("[API] ===== Request received: /api/sync =====")
     username, encrypted_password = get_primary_user_credentials()
 
     if not username:
+        print("[API] /api/sync → No credentials found → 400")
         return jsonify({"error": "not setup"}), 400
 
+    print(f"[API] /api/sync → Credentials found for: {username}")
     try:
         password = decrypt(encrypted_password)
+        print("[API] /api/sync → Password decrypted OK, running pipeline...")
         result = run_pipeline(username, password)
-        return jsonify({
+        response = {
             "status": "updated",
             **result,
-        })
+        }
+        print(f"[API] /api/sync → Response: {response}")
+        return jsonify(response)
     except Exception as e:
-        # Log the exception (in real deployment you would use proper logging)
-        print(f"Sync failed: {e}")
+        print(f"[API] /api/sync → FAILED: {e}")
+        traceback.print_exc()
         return jsonify({"error": "sync_failed", "message": str(e)}), 500
 
 
 
 @app.route("/api/next")
 def next_task():
+    print("[API] Request received: /api/next")
     rows = get_all_assignments(active_only=True)
+    print(f"[API] /api/next → {len(rows)} active assignments in DB")
     result = []
     
     for r in rows:
@@ -368,27 +408,36 @@ def next_task():
         result.append(item)
 
     if not result:
+        print("[API] /api/next → No tasks, returning null")
         return jsonify(None)
 
     result.sort(key=lambda x: x["priority"], reverse=True)
+    print(f"[API] /api/next → Top task: {result[0].get('title')} (priority={result[0].get('priority')})")
     return jsonify(result[0])
 
 
 @app.route("/api/done", methods=["POST"])
 def mark_done():
     task_id = request.args.get("task_id")
+    print(f"[API] Request received: /api/done (task_id={task_id})")
     if not task_id:
+        print("[API] /api/done → Missing task_id → 400")
         return jsonify({"error": "task_id is required"}), 400
     mark_inactive(task_id)
+    print(f"[API] /api/done → Task {task_id} marked inactive")
     return jsonify({"status": "ok"})
 
 
 @app.route("/api/cookies")
 def get_cookies():
+    print("[API] Request received: /api/cookies")
     if os.path.exists("state.json"):
         with open("state.json", "r") as f:
             state = json.load(f)
-            return jsonify({"cookies": state.get("cookies", [])})
+            cookies = state.get("cookies", [])
+            print(f"[API] /api/cookies → Returning {len(cookies)} cookies from state.json")
+            return jsonify({"cookies": cookies})
+    print("[API] /api/cookies → No state.json found, returning empty")
     return jsonify({"cookies": []})
 
 

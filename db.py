@@ -11,6 +11,7 @@ def get_connection():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise ValueError("DATABASE_URL environment variable is not set in .env")
+    print("[DB] Opening connection to PostgreSQL")
     return psycopg2.connect(db_url)
 
 
@@ -48,6 +49,7 @@ def init_db():
         )
 
         conn.commit()
+        print("[DB] assignments table initialized")
     except Exception:
         conn.rollback()
         raise
@@ -154,8 +156,10 @@ def insert_assignment(assignment):
         )
 
         conn.commit()
-    except Exception:
+        print(f"[DB] Upserted assignment: {assignment.get('title')} (id={identity_key[:8]}...)")
+    except Exception as e:
         conn.rollback()
+        print(f"[DB] INSERT FAILED for {assignment.get('title')}: {e}")
         raise
     finally:
         conn.close()
@@ -204,6 +208,7 @@ def get_all_assignments(active_only=False):
             assignment["synced"] = bool(assignment["synced"])
             rows.append(assignment)
 
+        print(f"[DB] get_all_assignments(active_only={active_only}) → {len(rows)} rows")
         return rows
     finally:
         conn.close()
@@ -320,8 +325,10 @@ def get_primary_user_credentials():
         cur.execute("SELECT moodle_user, moodle_pass FROM users LIMIT 1")
         row = cur.fetchone()
         if row:
+            print(f"[DB] get_primary_user_credentials → found user: {row[0]}")
             # psycopg2 returns BYTEA as memoryview; convert to bytes for Fernet
             return row[0], bytes(row[1]) if row[1] else None
+        print("[DB] get_primary_user_credentials → no users found")
         return None, None
     finally:
         conn.close()
