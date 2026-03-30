@@ -359,23 +359,42 @@ def get_assignments():
     return jsonify(items)
 
 
-@app.route("/api/sync")
+@app.route("/api/sync", methods=["POST"])
 def sync_now():
-    print("[API] ===== Request received: /api/sync =====")
-    username, encrypted_password = get_primary_user_credentials()
+    print("[API] ===== Request received: POST /api/sync =====")
 
-    if not username:
-        print("[API] /api/sync → No credentials found → 400")
-        return jsonify({"error": "not setup"}), 400
+    data = request.get_json(force=True)
+    html = data.get("html")
+    pdf_map = data.get("pdf_map", {})
 
-    print(f"[API] /api/sync → Credentials found for: {username}")
+    if not html:
+        print("[API] /api/sync → No HTML provided → 400")
+        return jsonify({"error": "html is required"}), 400
+
+    print(f"[API] /api/sync → Got HTML ({len(html)} chars), {len(pdf_map)} PDF links from extension")
+
     try:
-        password = decrypt(encrypted_password)
-        print("[API] /api/sync → Password decrypted OK, running pipeline...")
-        result = run_pipeline(username, password)
+        print("[PIPELINE] Step 1: Parsing assignments from HTML...")
+        assignments = extract_assignments(html)
+        print(f"[PIPELINE] Step 1: Parsed {len(assignments)} assignments")
+
+        print("[PIPELINE] Step 2: Persisting to database...")
+        saved_assignments = persist_assignments(assignments)
+
+        for assignment in saved_assignments:
+            url = pdf_map.get(assignment.get("source_url"))
+            if url:
+                save_pdf_url(assignment["id"], url)
+
+        print("[PIPELINE] Step 3: Syncing to Google Calendar...")
+        result = sync_assignments(saved_assignments)
+
         response = {
             "status": "updated",
-            **result,
+            "added": len(result["added"]),
+            "updated": len(result["updated"]),
+            "removed": len(result["removed"]),
+            "unchanged": len(result["unchanged"]),
         }
         print(f"[API] /api/sync → Response: {response}")
         return jsonify(response)
