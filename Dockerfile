@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # Copy and install python dependencies
