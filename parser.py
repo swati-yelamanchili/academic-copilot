@@ -206,7 +206,6 @@ def _extract_from_aria_labels(soup):
     seen_urls = set()
 
     links = soup.select("a[aria-label]")
-    print(f"[PARSER] aria-label fallback: found {len(links)} links with aria-label")
 
     for link in links:
         aria = link.get("aria-label", "")
@@ -235,8 +234,6 @@ def _extract_from_aria_labels(soup):
         identity_key = build_assignment_identity_key(source_url, raw_title, title, course)
         dedupe_key = build_assignment_dedupe_key(raw_title, title, course, deadline)
 
-        print(f"[PARSER]   Found: {title} | {course} | deadline={deadline}")
-
         results.append(
             {
                 "id": identity_key,
@@ -256,6 +253,11 @@ def _extract_from_aria_labels(soup):
 
 
 def extract_assignments(html):
+    """
+    Parse assignments from Moodle HTML dashboard.
+    Primary method uses `data-region="event-list-item"`.
+    Fallback uses structured `aria-label` attributes on `<a>` tags.
+    """
     soup = BeautifulSoup(html, "html.parser")
     results = []
 
@@ -263,7 +265,6 @@ def extract_assignments(html):
     events = soup.select('[data-region="event-list-item"]')
 
     if events:
-        print(f"[PARSER] Primary method: found {len(events)} event-list-items")
         for event in events:
             title_node = event.find("a")
             raw_title = _clean_text(title_node)
@@ -299,22 +300,6 @@ def extract_assignments(html):
         return results
 
     # ── Fallback: parse from aria-label attributes ──
-    print(f"[PARSER] No event-list-items found, trying aria-label fallback...")
     results = _extract_from_aria_labels(soup)
-
-    if results:
-        print(f"[PARSER] aria-label fallback: extracted {len(results)} assignments")
-        return results
-
-    # ── Nothing found — diagnostic output ──
-    all_regions = list(set(
-        el.get("data-region") for el in soup.select("[data-region]")
-    ))
-    page_title = soup.title.string if soup.title else "N/A"
-    has_login = bool(soup.select('input[name="username"], input[type="email"]'))
-    print(f"[PARSER] WARNING: 0 assignments found in HTML ({len(html)} chars)")
-    print(f"[PARSER] Page title: {page_title}")
-    print(f"[PARSER] Has login form: {has_login}")
-    print(f"[PARSER] data-region values: {all_regions[:30]}")
 
     return results

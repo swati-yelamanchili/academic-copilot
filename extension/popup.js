@@ -155,18 +155,15 @@ function scrapeMoodleDashboard() {
                   },
                 });
                 const info = hasTimeline[0]?.result;
-                console.log(`[AcademicCopilot] Timeline poll (${waited}ms): items=${info?.items}, container=${info?.hasContainer}`);
                 if (info?.items > 0) {
-                  console.log(`[AcademicCopilot] Timeline items found after ${waited}ms`);
                   break;
                 }
                 // If container is present but no items after 15s, the page may have no events
                 if (info?.hasContainer && waited >= 15000) {
-                  console.log(`[AcademicCopilot] Timeline container loaded but no items after ${waited}ms — continuing anyway`);
                   break;
                 }
               } catch (pollErr) {
-                console.warn(`[AcademicCopilot] Poll error at ${waited}ms:`, pollErr);
+                // Ignore transient errors during page load
               }
               await sleep(pollInterval);
               waited += pollInterval;
@@ -193,23 +190,6 @@ function scrapeMoodleDashboard() {
               reject(new Error("Failed to capture Moodle page HTML"));
               return;
             }
-
-            // Diagnostic: check what data-region elements exist
-            const diagResults = await chrome.scripting.executeScript({
-              target: { tabId },
-              func: () => {
-                const regions = new Set();
-                document.querySelectorAll('[data-region]').forEach(el => regions.add(el.getAttribute('data-region')));
-                return {
-                  regions: [...regions],
-                  title: document.title,
-                  hasLoginForm: !!document.querySelector('input[name="username"], input[type="email"]'),
-                  eventItems: document.querySelectorAll('[data-region="event-list-item"]').length,
-                };
-              },
-            });
-            const diag = diagResults[0]?.result;
-            console.log(`[AcademicCopilot] Page diagnostics:`, diag);
 
             // Find assignment links in the page to scrape PDFs
             const linkResults = await chrome.scripting.executeScript({

@@ -373,20 +373,6 @@ def sync_now():
 
     print(f"[API] /api/sync → Got HTML ({len(html)} chars), {len(pdf_map)} PDF links from extension")
 
-    # ── Diagnostic: inspect what the parser will see ──
-    from bs4 import BeautifulSoup as _BS
-    _soup = _BS(html, "html.parser")
-    _event_items = _soup.select('[data-region="event-list-item"]')
-    _timeline = _soup.select('section.block_timeline, [data-region="event-list-container"], [data-region="event-list-wrapper"]')
-    _login_form = _soup.select('input[name="username"], input[type="email"]')
-    _all_data_regions = list(set(el.get("data-region") for el in _soup.select("[data-region]")))
-    print(f"[DEBUG] event-list-items: {len(_event_items)}, timeline sections: {len(_timeline)}, login forms: {len(_login_form)}")
-    print(f"[DEBUG] HTML title: {_soup.title.string if _soup.title else 'N/A'}")
-    print(f"[DEBUG] All data-region values found: {_all_data_regions[:30]}")
-    if _soup.body:
-        _body_text = _soup.body.get_text(" ", strip=True)[:500]
-        print(f"[DEBUG] Body text preview: {_body_text}")
-
     try:
         print("[PIPELINE] Step 1: Parsing assignments from HTML...")
         assignments = extract_assignments(html)
