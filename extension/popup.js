@@ -168,6 +168,10 @@ function scrapeMoodleDashboard() {
                       if (user && pass && !userInput.value) {
                         userInput.value = user;
                         passInput.value = pass;
+                        userInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        passInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+                        submitBtn.disabled = false;
                         submitBtn.click();
                       }
                       return { loginPage: true };
