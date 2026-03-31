@@ -48,8 +48,14 @@ const syncButton = document.getElementById("syncBtn");
 const doneBtn = document.getElementById("doneBtn");
 const viewPdfBtn = document.getElementById("viewPdfBtn");
 const submitBtn = document.getElementById("submitBtn");
+const prevTaskBtn = document.getElementById("prevTaskBtn");
+const nextTaskBtn = document.getElementById("nextTaskBtn");
+const taskCounter = document.getElementById("taskCounter");
+const paginationControls = document.getElementById("paginationControls");
 
 let currentTask = null;
+let allTasks = [];
+let currentTaskIndex = 0;
 
 
 function renderEmptyState(message) {
@@ -291,23 +297,72 @@ function sleep(ms) {
 async function loadNextTask() {
   console.log("[AcademicCopilot] loadNextTask() called");
   try {
-    const item = await fetchJson("/next");
-    console.log("[AcademicCopilot] Next task loaded:", item);
-    currentTask = item;
-    renderTask(item);
-    status.textContent = "";
-    doneBtn.disabled = !item || !item.id;
-    viewPdfBtn.disabled = !item || !item.pdf_url;
-    submitBtn.disabled = !item || !item.source_url;
+    const items = await fetchJson("/assignments");
+    console.log("[AcademicCopilot] All tasks loaded:", items?.length);
+
+    allTasks = Array.isArray(items) ? items : [];
+    currentTaskIndex = 0;
+
+    if (allTasks.length > 0) {
+      paginationControls.style.display = "flex";
+    } else {
+      paginationControls.style.display = "none";
+    }
+
+    renderCurrentTask();
   } catch (error) {
     console.error("[AcademicCopilot] loadNextTask FAILED:", error);
     renderEmptyState("Backend not running");
     status.textContent = "Start the local API with: ./app/bin/python api.py";
-    doneBtn.disabled = true;
-    viewPdfBtn.disabled = true;
-    submitBtn.disabled = true;
+    disableInteractions();
+    paginationControls.style.display = "none";
   }
 }
+
+function disableInteractions() {
+  doneBtn.disabled = true;
+  viewPdfBtn.disabled = true;
+  submitBtn.disabled = true;
+  prevTaskBtn.disabled = true;
+  nextTaskBtn.disabled = true;
+}
+
+function renderCurrentTask() {
+  if (allTasks.length === 0) {
+    currentTask = null;
+    renderTask(null);
+    disableInteractions();
+    return;
+  }
+
+  currentTask = allTasks[currentTaskIndex];
+  renderTask(currentTask);
+  status.textContent = "";
+
+  // Update pagination UI
+  taskCounter.textContent = `${currentTaskIndex + 1}/${allTasks.length}`;
+  prevTaskBtn.disabled = currentTaskIndex === 0;
+  nextTaskBtn.disabled = currentTaskIndex >= allTasks.length - 1;
+
+  // Update action buttons
+  doneBtn.disabled = !currentTask || !currentTask.id;
+  viewPdfBtn.disabled = !currentTask || !currentTask.pdf_url;
+  submitBtn.disabled = !currentTask || !currentTask.source_url;
+}
+
+prevTaskBtn.addEventListener("click", () => {
+  if (currentTaskIndex > 0) {
+    currentTaskIndex--;
+    renderCurrentTask();
+  }
+});
+
+nextTaskBtn.addEventListener("click", () => {
+  if (currentTaskIndex < allTasks.length - 1) {
+    currentTaskIndex++;
+    renderCurrentTask();
+  }
+});
 
 
 syncButton.addEventListener("click", async () => {
