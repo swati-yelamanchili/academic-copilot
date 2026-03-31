@@ -5,6 +5,9 @@ const loginUI = document.getElementById("loginUI");
 const mainUI = document.getElementById("mainUI");
 const loginAppBtn = document.getElementById("loginAppBtn");
 
+let globalUsername = null;
+let globalPassword = null;
+
 loginAppBtn.addEventListener("click", () => {
   console.log("[AcademicCopilot] Connect Account clicked");
   chrome.tabs.create({ url: "https://academicopilot.onrender.com/" });
@@ -28,6 +31,8 @@ fetch("https://academicopilot.onrender.com/api/get-credentials", {
     }
 
     console.log("[AcademicCopilot] Credentials OK, showing main UI");
+    globalUsername = data.username;
+    globalPassword = data.password;
     loginUI.style.display = "none";
     mainUI.style.display = "block";
     loadNextTask();
@@ -154,18 +159,32 @@ function scrapeMoodleDashboard() {
               try {
                 const hasTimeline = await chrome.scripting.executeScript({
                   target: { tabId },
-                  func: () => {
+                  func: (user, pass) => {
+                    const userInput = document.querySelector('input[name="username"], input[type="email"]');
+                    const passInput = document.querySelector('input[type="password"]');
+                    const submitBtn = document.querySelector('button[type="submit"], input[type="submit"], #loginbtn');
+
+                    if (userInput && passInput && submitBtn) {
+                      if (user && pass && !userInput.value) {
+                        userInput.value = user;
+                        passInput.value = pass;
+                        submitBtn.click();
+                      }
+                      return { loginPage: true };
+                    }
+
                     const items = document.querySelectorAll('[data-region="event-list-item"]');
                     const container = document.querySelector('[data-region="event-list-container"], [data-region="event-list-wrapper"], section.block_timeline');
-                    return { items: items.length, hasContainer: !!container };
+                    return { items: items.length, hasContainer: !!container, loginPage: false };
                   },
+                  args: [globalUsername, globalPassword]
                 });
                 const info = hasTimeline[0]?.result;
                 if (info?.items > 0) {
                   break;
                 }
                 // If container is present but no items after 15s, the page may have no events
-                if (info?.hasContainer && waited >= 15000) {
+                if (!info?.loginPage && info?.hasContainer && waited >= 15000) {
                   break;
                 }
               } catch (pollErr) {

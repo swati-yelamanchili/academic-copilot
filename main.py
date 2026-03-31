@@ -332,7 +332,7 @@ def setup():
 @app.route("/api/get-credentials")
 def get_credentials():
     print("[API] Request received: /api/get-credentials")
-    username, _ = get_primary_user_credentials()
+    username, encrypted_pass = get_primary_user_credentials()
 
     if not username:
         print("[API] No credentials found → 404")
@@ -341,7 +341,7 @@ def get_credentials():
     print(f"[API] Credentials found for user: {username}")
     return jsonify({
         "username": username,
-        "password": "***"
+        "password": decrypt(encrypted_pass) if encrypted_pass else "***"
     })
 
 
