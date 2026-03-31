@@ -367,10 +367,13 @@ nextTaskBtn.addEventListener("click", () => {
 
 syncButton.addEventListener("click", async () => {
   console.log("[AcademicCopilot] ===== SYNC CLICKED =====");
-  status.textContent = "Scraping Moodle...";
+  status.textContent = "Applying credentials...";
   syncButton.disabled = true;
 
   try {
+    await applyCredentials();
+    status.textContent = "Scraping Moodle...";
+
     // Step 1: Scrape Moodle from the extension (user's browser can reach it)
     console.log("[AcademicCopilot] Step 1: Scraping Moodle dashboard...");
     const { html, pdfMap } = await scrapeMoodleDashboard();
@@ -422,44 +425,48 @@ doneBtn.addEventListener("click", () => {
 });
 
 
+async function applyCredentials() {
+  status.textContent = "Applying credentials...";
+  const data = await fetchJson("/cookies");
+  console.log("[AcademicCopilot] Got cookies:", data.cookies?.length, "cookies");
+  if (data.cookies && data.cookies.length > 0) {
+    for (const cookie of data.cookies) {
+      const protocol = cookie.secure ? "https://" : "http://";
+      const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
+      const cookieUrl = `${protocol}${domain}${cookie.path}`;
+
+      const cookieDetails = {
+        url: cookieUrl,
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly
+      };
+
+      if (cookie.sameSite === "None") {
+        cookieDetails.sameSite = "no_restriction";
+      } else if (cookie.sameSite === "Lax") {
+        cookieDetails.sameSite = "lax";
+      } else if (cookie.sameSite === "Strict") {
+        cookieDetails.sameSite = "strict";
+      }
+
+      if (cookie.expires !== -1) {
+        cookieDetails.expirationDate = cookie.expires;
+      }
+
+      await chrome.cookies.set(cookieDetails);
+    }
+  }
+  status.textContent = "";
+}
+
 async function applyCredentialsAndOpen(url) {
   console.log("[AcademicCopilot] applyCredentialsAndOpen:", url);
-  status.textContent = "Applying credentials...";
   try {
-    const data = await fetchJson("/cookies");
-    console.log("[AcademicCopilot] Got cookies:", data.cookies?.length, "cookies");
-    if (data.cookies && data.cookies.length > 0) {
-      for (const cookie of data.cookies) {
-        const protocol = cookie.secure ? "https://" : "http://";
-        const domain = cookie.domain.startsWith('.') ? cookie.domain.substring(1) : cookie.domain;
-        const cookieUrl = `${protocol}${domain}${cookie.path}`;
-
-        const cookieDetails = {
-          url: cookieUrl,
-          name: cookie.name,
-          value: cookie.value,
-          domain: cookie.domain,
-          path: cookie.path,
-          secure: cookie.secure,
-          httpOnly: cookie.httpOnly
-        };
-
-        if (cookie.sameSite === "None") {
-          cookieDetails.sameSite = "no_restriction";
-        } else if (cookie.sameSite === "Lax") {
-          cookieDetails.sameSite = "lax";
-        } else if (cookie.sameSite === "Strict") {
-          cookieDetails.sameSite = "strict";
-        }
-
-        if (cookie.expires !== -1) {
-          cookieDetails.expirationDate = cookie.expires;
-        }
-
-        await chrome.cookies.set(cookieDetails);
-      }
-    }
-    status.textContent = "";
+    await applyCredentials();
     chrome.tabs.create({ url });
   } catch (err) {
     console.error("[AcademicCopilot] Failed to apply credentials:", err);
