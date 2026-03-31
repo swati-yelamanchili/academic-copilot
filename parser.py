@@ -186,34 +186,63 @@ def canonicalize_identity_title(title, course=None):
     return normalized.lower()
 
 
-def extract_assignments(html):
-    soup = BeautifulSoup(html, "html.parser")
-    results = []
-    events = soup.select('[data-region="event-list-item"]')
+ARIA_LABEL_PATTERN = re.compile(
+    r"^(?P<title>.+?)\s+activity\s+in\s+(?P<course>.+?)\s+is\s+due\s+on\s+"
+    r"(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d{4}),?\s*(?P<time>\d{1,2}:\d{2}\s*[APap][Mm])?",
+    re.IGNORECASE,
+)
 
-    for event in events:
-        title_node = event.find("a")
-        raw_title = _clean_text(title_node)
-        if not raw_title:
+
+def _parse_aria_deadline(day, month, year, time_str):
+    """Build an ISO deadline from aria-label components."""
+    date_text = f"{day} {month} {year}"
+    deadline, all_day = _build_deadline(date_text, time_str)
+    return deadline, all_day
+
+
+def _extract_from_aria_labels(soup):
+    """Fallback parser: extract assignments from <a> tags with structured aria-label."""
+    results = []
+    seen_urls = set()
+
+    links = soup.select("a[aria-label]")
+    print(f"[PARSER] aria-label fallback: found {len(links)} links with aria-label")
+
+    for link in links:
+        aria = link.get("aria-label", "")
+        match = ARIA_LABEL_PATTERN.match(aria)
+        if not match:
             continue
 
-        mod_link = event.find("a", href=lambda h: h and "mod/" in h)
-        source_url = _clean_href(mod_link) if mod_link else _clean_href(title_node)
-        date_node = event.find_previous(attrs={"data-region": "event-list-content-date"})
-        date_text = _clean_text(date_node)
-        time_text = _extract_time(event)
-        course = _extract_course(event)
-        deadline, all_day = _build_deadline(date_text, time_text)
-        title = _normalize_title(raw_title, course)
+        href = link.get("href", "")
+        if not href or "mod/" not in href:
+            continue
+
+        source_url = _normalize_source_url(href)
+        if source_url in seen_urls:
+            continue
+        seen_urls.add(source_url)
+
+        raw_title = _clean_text(link)
+        title_from_aria = match.group("title")
+        course = match.group("course")
+        time_text = match.group("time")
+        deadline, all_day = _parse_aria_deadline(
+            match.group("day"), match.group("month"), match.group("year"), time_text
+        )
+
+        title = _normalize_title(raw_title or title_from_aria, course)
         identity_key = build_assignment_identity_key(source_url, raw_title, title, course)
         dedupe_key = build_assignment_dedupe_key(raw_title, title, course, deadline)
+
+        print(f"[PARSER]   Found: {title} | {course} | deadline={deadline}")
 
         results.append(
             {
                 "id": identity_key,
                 "identity_key": identity_key,
                 "title": title,
-                "raw_title": raw_title,
+                "raw_title": raw_title or title_from_aria,
                 "course": course,
                 "source_url": source_url,
                 "deadline": deadline,
@@ -222,5 +251,70 @@ def extract_assignments(html):
                 "dedupe_key": dedupe_key,
             }
         )
+
+    return results
+
+
+def extract_assignments(html):
+    soup = BeautifulSoup(html, "html.parser")
+    results = []
+
+    # ── Primary method: data-region selectors ──
+    events = soup.select('[data-region="event-list-item"]')
+
+    if events:
+        print(f"[PARSER] Primary method: found {len(events)} event-list-items")
+        for event in events:
+            title_node = event.find("a")
+            raw_title = _clean_text(title_node)
+            if not raw_title:
+                continue
+
+            mod_link = event.find("a", href=lambda h: h and "mod/" in h)
+            source_url = _clean_href(mod_link) if mod_link else _clean_href(title_node)
+            date_node = event.find_previous(attrs={"data-region": "event-list-content-date"})
+            date_text = _clean_text(date_node)
+            time_text = _extract_time(event)
+            course = _extract_course(event)
+            deadline, all_day = _build_deadline(date_text, time_text)
+            title = _normalize_title(raw_title, course)
+            identity_key = build_assignment_identity_key(source_url, raw_title, title, course)
+            dedupe_key = build_assignment_dedupe_key(raw_title, title, course, deadline)
+
+            results.append(
+                {
+                    "id": identity_key,
+                    "identity_key": identity_key,
+                    "title": title,
+                    "raw_title": raw_title,
+                    "course": course,
+                    "source_url": source_url,
+                    "deadline": deadline,
+                    "datetime": deadline,
+                    "all_day": all_day,
+                    "dedupe_key": dedupe_key,
+                }
+            )
+
+        return results
+
+    # ── Fallback: parse from aria-label attributes ──
+    print(f"[PARSER] No event-list-items found, trying aria-label fallback...")
+    results = _extract_from_aria_labels(soup)
+
+    if results:
+        print(f"[PARSER] aria-label fallback: extracted {len(results)} assignments")
+        return results
+
+    # ── Nothing found — diagnostic output ──
+    all_regions = list(set(
+        el.get("data-region") for el in soup.select("[data-region]")
+    ))
+    page_title = soup.title.string if soup.title else "N/A"
+    has_login = bool(soup.select('input[name="username"], input[type="email"]'))
+    print(f"[PARSER] WARNING: 0 assignments found in HTML ({len(html)} chars)")
+    print(f"[PARSER] Page title: {page_title}")
+    print(f"[PARSER] Has login form: {has_login}")
+    print(f"[PARSER] data-region values: {all_regions[:30]}")
 
     return results

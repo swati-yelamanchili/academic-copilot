@@ -137,8 +137,48 @@ function scrapeMoodleDashboard() {
         console.log("[AcademicCopilot] Moodle tab loaded, waiting for AJAX...");
 
         // Wait for AJAX content to load (timeline events)
-        setTimeout(async () => {
+        // Poll for timeline content instead of static 8s wait
+        (async () => {
           try {
+            let waited = 0;
+            const pollInterval = 1000;
+            const maxWait = 30000;
+
+            while (waited < maxWait) {
+              try {
+                const hasTimeline = await chrome.scripting.executeScript({
+                  target: { tabId },
+                  func: () => {
+                    const items = document.querySelectorAll('[data-region="event-list-item"]');
+                    const container = document.querySelector('[data-region="event-list-container"], [data-region="event-list-wrapper"], section.block_timeline');
+                    return { items: items.length, hasContainer: !!container };
+                  },
+                });
+                const info = hasTimeline[0]?.result;
+                console.log(`[AcademicCopilot] Timeline poll (${waited}ms): items=${info?.items}, container=${info?.hasContainer}`);
+                if (info?.items > 0) {
+                  console.log(`[AcademicCopilot] Timeline items found after ${waited}ms`);
+                  break;
+                }
+                // If container is present but no items after 15s, the page may have no events
+                if (info?.hasContainer && waited >= 15000) {
+                  console.log(`[AcademicCopilot] Timeline container loaded but no items after ${waited}ms — continuing anyway`);
+                  break;
+                }
+              } catch (pollErr) {
+                console.warn(`[AcademicCopilot] Poll error at ${waited}ms:`, pollErr);
+              }
+              await sleep(pollInterval);
+              waited += pollInterval;
+            }
+
+            if (waited >= maxWait) {
+              console.warn(`[AcademicCopilot] Timeline wait timed out at ${maxWait}ms`);
+            }
+
+            // Additional settle time for any remaining AJAX
+            await sleep(2000);
+
             // Extract HTML from the page
             const results = await chrome.scripting.executeScript({
               target: { tabId },
@@ -153,6 +193,23 @@ function scrapeMoodleDashboard() {
               reject(new Error("Failed to capture Moodle page HTML"));
               return;
             }
+
+            // Diagnostic: check what data-region elements exist
+            const diagResults = await chrome.scripting.executeScript({
+              target: { tabId },
+              func: () => {
+                const regions = new Set();
+                document.querySelectorAll('[data-region]').forEach(el => regions.add(el.getAttribute('data-region')));
+                return {
+                  regions: [...regions],
+                  title: document.title,
+                  hasLoginForm: !!document.querySelector('input[name="username"], input[type="email"]'),
+                  eventItems: document.querySelectorAll('[data-region="event-list-item"]').length,
+                };
+              },
+            });
+            const diag = diagResults[0]?.result;
+            console.log(`[AcademicCopilot] Page diagnostics:`, diag);
 
             // Find assignment links in the page to scrape PDFs
             const linkResults = await chrome.scripting.executeScript({
@@ -215,7 +272,7 @@ function scrapeMoodleDashboard() {
             chrome.tabs.remove(tabId);
             reject(err);
           }
-        }, 8000); // Wait 8s for AJAX timeline to load
+        })();
       }
 
       chrome.tabs.onUpdated.addListener(onUpdated);
