@@ -254,12 +254,15 @@ def _serialize_assignment(row):
     overdue = urgency == 5
 
     return {
+        "id": row.get("id"),
         "title": row["title"],
         "course": row.get("course"),
         "datetime": datetime_value,
         "urgency": urgency,
         "effort": effort,
         "priority": priority_score(urgency, effort, overdue),
+        "pdf_url": row.get("pdf_url"),
+        "source_url": row.get("source_url"),
     }
 
 
